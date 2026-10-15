@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=64,<82"]
+build-backend = "setuptools.build_meta"
+
+# The robot side: installed on the robot's computer, never on the server.
+# A client of HuRI: huri-core[client], no Ray, no module.
+[project]
+name = "huri-inmoov-robot"
+version = "0.1.0"
+description = "InMoov robot client of HuRI: servo angles to the servos, safely"
+requires-python = ">=3.10"
+dependencies = [
+  "huri-core[client]>=0.4.0.dev0,<0.5",
+  "huri-events>=0.1,<0.2",          # huri.audio.in / huri.audio.out
+  "huri-events-inmoov>=0.1,<0.2",   # inmoov.servo_angles (../events)
+  "numpy>=1.26,<2",
+  "pyserial>=3.5,<4",
+]
+
+[project.optional-dependencies]
+# Microphone and speaker; the robot moves without them.
+audio = ["sounddevice>=0.5,<0.6"]
+
+[project.scripts]
+huri-inmoov-robot = "huri_inmoov_robot.app:main"
+
+[project.urls]
+Homepage = "https://github.com/Lucy-Robotics/huri-inmoov"
+Repository = "https://github.com/Lucy-Robotics/huri-inmoov"
+Issues = "https://github.com/Lucy-Robotics/huri-inmoov/issues"
+
+[tool.setuptools.packages.find]
+include = ["huri_inmoov_robot*"]

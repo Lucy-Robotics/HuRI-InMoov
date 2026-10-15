@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# The HuRI refs this repository is built and tested against: a git ref (branch
+# or tag) of each repository. "dev" follows their development branches; pin
+# release tags (huri-core "0.4.0", huri-modules "0.1.0") once they exist,
+# choosing a compatible pair from the table in the huri-modules README.
+env:
+  HURI_CORE_REF: dev
+  HURI_MODULES_REF: dev
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: HuRI core and curated events, pinned
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            "huri-core[server,client] @ git+https://github.com/Lucy-Robotics/huri-core.git@${HURI_CORE_REF}" \
+            "huri-events @ git+https://github.com/Lucy-Robotics/huri-modules.git@${HURI_MODULES_REF}#subdirectory=packages/huri-events"
+      - name: The three packages, in one pip call (events are on no index)
+        run: pip install -e ./events -e "./module[dev]" -e ./robot
+      - name: style
+        run: |
+          black --check .
+          isort --check-only .
+          flake8
+      - run: pytest -q

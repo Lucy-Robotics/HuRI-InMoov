@@ -1,0 +1,203 @@
+# SMPL-X -> InMoov retargeting: one [servos."<name>"] table per servo of the
+# huri-events-inmoov layout (SERVO_NAMES). Every servo of the layout must be
+# here; a servo without `sources` stays at `rest` (the fingers, for now).
+#
+#   angle = rest + scale * (sum of the sources' angles, degrees - ref)
+#   clamped to [min, max], then moved at most `max_speed` deg/s from the
+#   previous frame.
+#
+# Fields:
+#   sources    SMPL-X joints read, as { joint = <name or index 0-54>, axis =
+#              "x"|"y"|"z" }: the component of the joint's axis-angle vector on
+#              that axis, in degrees (summed when several).
+#   scale      degrees of servo per degree of SMPL-X rotation; its sign sets
+#              the direction.
+#   ref        the SMPL-X angle (degrees) that maps to `rest`; 0 by default, so
+#              the SMPL-X zero pose maps to the rest position.
+#   rest       the servo's neutral/rest angle (degrees).
+#   min, max   the servo's allowed range (degrees), always enforced.
+#   max_speed  deg/s; defaults to [defaults].max_speed.
+#
+# SMPL-X axes (zero pose, the T-pose): y up, x towards the body's left, z
+# forward. Joint rotations are local; about x is a pitch, about y a yaw, about
+# z a roll (in the frontal plane). The component of the axis-angle vector is a
+# first-order approximation of the Euler angle: exact for a rotation about a
+# single axis, increasingly wrong for large combined rotations.
+#
+# Ranges and rest angles: the defaults of MyRobotLab's InMoov2 service
+# configuration (InMoov2Head, InMoov2Torso, InMoov2Arm, InMoov2Hand) as
+# commonly shipped; they are a starting point, NOT a calibration. Every build
+# differs (horn mounting, potentiometer hacks): measure each servo's safe range
+# on your robot and edit min/max/rest here AND in the robot's limits (the robot
+# enforces its own, see the README). Signs (scale) are assumptions to check on
+# the robot, servo by servo, with small motions first.
+
+[defaults]
+max_speed = 90.0  # deg/s, a conservative speed for InMoov's HS-805BB/MG996R servos
+
+# --- Head -------------------------------------------------------------------
+
+[servos."head.neck"]  # pitch, nodding; assumed: higher angle = head up
+sources = [{ joint = "neck", axis = "x" }, { joint = "head", axis = "x" }]
+scale = -1.0
+rest = 90.0
+min = 20.0
+max = 160.0
+
+[servos."head.rothead"]  # yaw, turning the head; assumed: higher = towards the robot's left
+sources = [{ joint = "neck", axis = "y" }, { joint = "head", axis = "y" }]
+scale = 1.0
+rest = 90.0
+min = 20.0
+max = 160.0
+
+[servos."head.jaw"]  # optional: scale = 0 keeps it at rest; try scale = 1.5 to follow the jaw
+sources = [{ joint = "jaw", axis = "x" }]
+scale = 0.0
+rest = 10.0
+min = 10.0
+max = 25.0
+
+# --- Torso ------------------------------------------------------------------
+
+[servos."torso.midStom"]  # yaw of the upper body; range kept narrow on purpose
+sources = [
+  { joint = "spine1", axis = "y" },
+  { joint = "spine2", axis = "y" },
+  { joint = "spine3", axis = "y" },
+]
+scale = 1.0
+rest = 90.0
+min = 60.0
+max = 120.0
+
+# --- Arms -------------------------------------------------------------------
+# omoplate: abduction (arm away from the body, in the frontal plane: SMPL-X z).
+#   SMPL-X zero is the T-pose (arm abducted 90 deg); InMoov's rest is the arm
+#   down, so `ref` puts the robot's rest at an arm lowered by ~80 deg.
+# shoulder: flexion (arm forward, about SMPL-X y for an arm along x).
+# rotate: rotation about the upper arm's own axis (SMPL-X x for an arm along x).
+# bicep: elbow flexion (SMPL-X y of the elbow).
+# The right side mirrors the left: z and y signs flip.
+
+[servos."leftArm.omoplate"]
+sources = [{ joint = "left_shoulder", axis = "z" }]
+scale = 1.0
+ref = -80.0
+rest = 10.0
+min = 10.0
+max = 80.0
+
+[servos."leftArm.shoulder"]
+sources = [{ joint = "left_shoulder", axis = "y" }]
+scale = -1.0
+rest = 30.0
+min = 0.0
+max = 180.0
+
+[servos."leftArm.rotate"]
+sources = [{ joint = "left_shoulder", axis = "x" }]
+scale = 1.0
+rest = 90.0
+min = 40.0
+max = 180.0
+
+[servos."leftArm.bicep"]
+sources = [{ joint = "left_elbow", axis = "y" }]
+scale = -1.0
+rest = 5.0
+min = 5.0
+max = 90.0
+
+[servos."rightArm.omoplate"]
+sources = [{ joint = "right_shoulder", axis = "z" }]
+scale = -1.0
+ref = 80.0
+rest = 10.0
+min = 10.0
+max = 80.0
+
+[servos."rightArm.shoulder"]
+sources = [{ joint = "right_shoulder", axis = "y" }]
+scale = 1.0
+rest = 30.0
+min = 0.0
+max = 180.0
+
+[servos."rightArm.rotate"]
+sources = [{ joint = "right_shoulder", axis = "x" }]
+scale = 1.0
+rest = 90.0
+min = 40.0
+max = 180.0
+
+[servos."rightArm.bicep"]
+sources = [{ joint = "right_elbow", axis = "y" }]
+scale = 1.0
+rest = 5.0
+min = 5.0
+max = 90.0
+
+# --- Hands: TODO, held at rest ------------------------------------------------
+# SMPL-X has 15 hand joints per hand (left_index1..right_thumb3); mapping their
+# curl to InMoov's tendon servos is future work. Until then, no sources.
+
+[servos."leftHand.thumb"]
+rest = 2.0
+min = 2.0
+max = 170.0
+
+[servos."leftHand.index"]
+rest = 2.0
+min = 2.0
+max = 170.0
+
+[servos."leftHand.majeure"]
+rest = 2.0
+min = 2.0
+max = 170.0
+
+[servos."leftHand.ringFinger"]
+rest = 2.0
+min = 2.0
+max = 170.0
+
+[servos."leftHand.pinky"]
+rest = 2.0
+min = 2.0
+max = 170.0
+
+[servos."leftHand.wrist"]
+rest = 90.0
+min = 20.0
+max = 160.0
+
+[servos."rightHand.thumb"]
+rest = 2.0
+min = 2.0
+max = 170.0
+
+[servos."rightHand.index"]
+rest = 2.0
+min = 2.0
+max = 170.0
+
+[servos."rightHand.majeure"]
+rest = 2.0
+min = 2.0
+max = 170.0
+
+[servos."rightHand.ringFinger"]
+rest = 2.0
+min = 2.0
+max = 170.0
+
+[servos."rightHand.pinky"]
+rest = 2.0
+min = 2.0
+max = 170.0
+
+[servos."rightHand.wrist"]
+rest = 90.0
+min = 20.0
+max = 160.0

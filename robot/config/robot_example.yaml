@@ -1,0 +1,69 @@
+# huri-inmoov-robot: the full voice pipeline, ending in the InMoov servos.
+#   huri-inmoov-robot --config robot/config/robot_example.yaml [--fake]
+# The server must enable every module below in HURI_MODULES, and opt in to the
+# one that moves hardware: HURI_ACTUATION_MODULES=inmoov.
+
+huri_url: ws://localhost:8000/session
+
+send: [huri.audio.in]
+subscribe: [huri.audio.out, inmoov.servo_angles]
+
+modules:
+  vad:
+    name: vad
+    args:
+      vad_agressiveness: 3
+      silence_duration: 1.5
+      block_duration: ${robot.audio.frame_duration}
+  stt:
+    name: stt
+    args:
+      language: en
+      block_duration: ${robot.audio.frame_duration}
+  tag:
+    name: tag
+  emo:
+    name: emo
+    args:
+      block_duration: ${robot.audio.frame_duration}
+  eag:
+    name: eag
+  qag:
+    name: qag
+  rag:
+    name: rag
+    args:
+      language: en
+  tts:
+    name: tts
+  mov:
+    name: mov
+  inmoov:
+    name: inmoov
+    # args:
+    #   joints: /etc/huri/inmoov_joints.toml   # this robot's calibration, on the server
+
+# Read by huri-inmoov-robot only; the server never sees it.
+robot:
+  driver:
+    type: serial              # or fake (same as --fake)
+    port: /dev/ttyACM0
+    baudrate: 115200
+  # Servo -> channel of arduino/huri_inmoov_servos (its PINS table). Servos not
+  # listed are not driven. TODO: match your wiring.
+  channels:
+    head.neck: 0
+    head.rothead: 1
+    head.jaw: 2
+  watchdog_ms: 500            # no frame for this long -> on_timeout
+  on_timeout: rest            # rest (walk back to rest) or hold (stay)
+  estop_action: hold          # hold (keep torque) or detach (arms fall!)
+  # Per-servo overrides of the robot's own limits (degrees, deg/s): these win
+  # over anything the server sends. TODO: calibrate.
+  limits:
+    head.neck: {min: 40, max: 140}
+  audio:
+    mic: true
+    speaker: true
+    sample_rate: 16000
+    frame_duration: 0.030

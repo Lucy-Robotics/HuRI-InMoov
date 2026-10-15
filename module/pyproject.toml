@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=64,<82"]
+build-backend = "setuptools.build_meta"
+
+# The server side: installed next to huri-core[server] on the HuRI server.
+[project]
+name = "huri-module-inmoov"
+version = "0.1.0"
+description = "HuRI module: SMPL-X gestures to InMoov servo angles"
+requires-python = ">=3.10"
+dependencies = [
+  "huri-core[server]>=0.4.0.dev0,<0.5",
+  "huri-events>=0.1,<0.2",          # huri.motion, the input
+  # The events it introduces (../events): on no package index, so installed
+  # together with the module, from the same checkout or tag (see the README).
+  "huri-events-inmoov>=0.1,<0.2",
+  "numpy>=1.26,<2",
+  "tomli>=2; python_version < '3.11'",  # the joints config
+]
+
+[project.urls]
+Homepage = "https://github.com/Lucy-Robotics/huri-inmoov"
+Repository = "https://github.com/Lucy-Robotics/huri-inmoov"
+Issues = "https://github.com/Lucy-Robotics/huri-inmoov/issues"
+
+[project.optional-dependencies]
+# The repository's lint and test tools (CI installs them through this extra).
+# flake8-pyproject: flake8 alone does not read [tool.flake8] of the root
+# pyproject.toml.
+dev = ["pytest>=8", "black>=24", "isort>=5", "flake8>=7", "flake8-pyproject>=1.2"]
+
+# `name: inmoov` in a client's modules, `inmoov` in the server's HURI_MODULES
+# and HURI_ACTUATION_MODULES.
+[project.entry-points."huri.modules"]
+inmoov = "huri_inmoov.module:InMoov"
+
+[tool.setuptools.packages.find]
+include = ["huri_inmoov*"]
+
+[tool.setuptools.package-data]
+huri_inmoov = ["huri_module.toml", "joints.toml"]

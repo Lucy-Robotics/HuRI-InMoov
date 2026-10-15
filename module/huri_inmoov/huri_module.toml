@@ -1,0 +1,9 @@
+# What the module is, readable without importing it (HuRI's startup check and
+# the hub use it). Keep it in step with the module class.
+name = "inmoov"
+summary = "Retargets SMPL-X gestures to InMoov servo angles (moves hardware)"
+input = { topic = "huri.motion", event = "huri_events.motion:Motion" }
+output = { topic = "inmoov.servo_angles", event = "huri_events_inmoov:ServoAngles" }
+events = ["huri-events>=0.1,<0.2", "huri-events-inmoov>=0.1,<0.2"]
+requires = { gpu = false, actuation = true }
+huri_core = ">=0.4.0.dev0,<0.5"
