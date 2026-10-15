@@ -9,7 +9,9 @@ Every angle goes through a SafetyController before the driver:
   (walk back to rest at the speed limit);
 - e-stop: latched; nothing moves until reset(). "hold" stops sending angles
   (servos keep their torque), "detach" removes the torque (an InMoov's arms
-  then fall: only when that is safe for your build).
+  then fall: only when that is safe for your build);
+- driver fault (DriverFault, e.g. a stuck serial port): latches the e-stop
+  without trying any more writes.
 
 The robot is assumed at rest when the controller starts (the Arduino sketch
 attaches every servo at its rest angle).
@@ -20,7 +22,7 @@ import math
 import time
 from typing import Callable, Dict, Mapping, Optional
 
-from huri_inmoov_robot.drivers import ServoDriver
+from huri_inmoov_robot.drivers import DriverFault, ServoDriver
 from huri_inmoov_robot.limits import ServoLimit
 
 logger = logging.getLogger("huri_inmoov_robot.safety")
@@ -35,7 +37,7 @@ class SafetyController:
         driver: ServoDriver,
         limits: Mapping[str, ServoLimit],
         *,
-        watchdog_s: float = 0.5,
+        watchdog_s: float = 1.5,
         on_timeout: str = "rest",
         estop_action: str = "hold",
         max_dt: float = 0.1,
@@ -136,7 +138,10 @@ class SafetyController:
                 self.position[name] = new
                 out[name] = new
         if out:
-            self.driver.write(out)
+            try:
+                self.driver.write(out)
+            except DriverFault as e:
+                self.fault(e)
 
     # --- e-stop -------------------------------------------------------------
 
@@ -145,11 +150,25 @@ class SafetyController:
 
         if self.estopped:
             return
+        # Latched before touching the driver: a stuck port cannot keep the
+        # robot out of the e-stop state.
         self.estopped = True
         self.estop_reason = reason
         logger.critical("E-STOP (%s): %s", reason, self.estop_action)
         if self.estop_action == "detach":
-            self.driver.detach()
+            try:
+                self.driver.detach()
+            except Exception:
+                logger.exception("e-stop: detach failed")
+
+    def fault(self, error: BaseException) -> None:
+        """The driver failed: latch the e-stop, write nothing more."""
+
+        if self.estopped:
+            return
+        self.estopped = True
+        self.estop_reason = f"driver fault: {error}"
+        logger.critical("E-STOP (driver fault): %s", error)
 
     def reset(self) -> None:
         """Leave the e-stop. After "detach" the servos get their torque back

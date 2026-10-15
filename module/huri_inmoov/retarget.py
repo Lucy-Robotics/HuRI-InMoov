@@ -5,6 +5,7 @@ components drive each servo; `Retargeter` applies it frame by frame, clamps to
 each servo's range and limits its speed between frames.
 """
 
+import os
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
@@ -51,6 +52,10 @@ assert len(SMPLX_JOINTS) == 55
 _AXES = {"x": 0, "y": 1, "z": 2}
 
 DEFAULT_CONFIG = "joints.toml"
+# The server operator's joints config (this robot's calibration): a path, read
+# once when the server imports the module. Unset: the packaged default.
+JOINTS_ENV = "HURI_INMOOV_JOINTS"
+MAX_CONFIG_BYTES = 64 * 1024
 
 
 @dataclass(frozen=True)
@@ -147,8 +152,30 @@ def load_config(
     if path is None:
         text = resources.files(__package__).joinpath(DEFAULT_CONFIG).read_text()
     else:
-        text = Path(path).read_text()
+        path = Path(path)
+        if not path.is_file():
+            raise JointsConfigError(f"{path}: not a regular file")
+        with path.open("rb") as f:
+            data = f.read(MAX_CONFIG_BYTES + 1)
+        if len(data) > MAX_CONFIG_BYTES:
+            raise JointsConfigError(f"{path}: larger than {MAX_CONFIG_BYTES} bytes")
+        text = data.decode("utf-8")
     return parse_config(loads_toml(text), servo_names)
+
+
+def load_operator_config(
+    servo_names: Sequence[str], environ: Optional[Mapping[str, str]] = None
+) -> List[ServoMap]:
+    """The joints config the server operator chose ($HURI_INMOOV_JOINTS), or
+    the packaged default. Raises (so the server does not start) when the
+    setting points to a missing or invalid file."""
+
+    environ = os.environ if environ is None else environ
+    path = environ.get(JOINTS_ENV) or None
+    try:
+        return load_config(path, servo_names)
+    except (OSError, ValueError) as e:
+        raise JointsConfigError(f"{JOINTS_ENV}={path}: {e}") from e
 
 
 class Retargeter:
@@ -191,6 +218,9 @@ class Retargeter:
         out = np.empty_like(targets)
         last = self.last
         for i, target in enumerate(targets):
+            # A non-finite target (NaN in the pose) holds that servo for this
+            # frame, instead of poisoning `last` for the rest of the session.
+            target = np.where(np.isfinite(target), target, last)
             last = last + np.clip(target - last, -step, step)
             out[i] = last
         self.last = last

@@ -6,9 +6,10 @@ The config is a HuRI client YAML (huri_url, modules, send, subscribe) plus a
 `robot:` section the server never reads:
 
     robot:
-      driver: {type: serial, port: /dev/ttyACM0, baudrate: 115200}  # or {type: fake}
+      driver: {type: serial, port: /dev/ttyACM0, baudrate: 115200,
+               write_timeout: 0.05}                          # or {type: fake}
       channels: {head.neck: 0, head.rothead: 1, ...}   # servo -> board channel
-      watchdog_ms: 500
+      watchdog_ms: 1500         # longer than a pause between sentences
       on_timeout: rest          # or hold
       estop_action: hold        # or detach
       limits: {head.neck: {min: 40, max: 140}}        # overrides of DEFAULT_LIMITS
@@ -54,6 +55,7 @@ def make_driver(robot: Mapping[str, Any], fake: bool = False) -> ServoDriver:
             spec["port"],
             channels=robot.get("channels", {}),
             baudrate=int(spec.get("baudrate", 115200)),
+            write_timeout=float(spec.get("write_timeout", 0.05)),
         )
     raise ValueError(f"robot.driver.type must be serial or fake, got {kind!r}")
 
@@ -83,7 +85,7 @@ def build(raw: Mapping[str, Any], fake: bool = False) -> Robot:
     controller = SafetyController(
         driver,
         load_limits(settings.get("limits", {})),
-        watchdog_s=float(settings.get("watchdog_ms", 500)) / 1000,
+        watchdog_s=float(settings.get("watchdog_ms", 1500)) / 1000,
         on_timeout=settings.get("on_timeout", "rest"),
         estop_action=settings.get("estop_action", "hold"),
     )
@@ -91,11 +93,16 @@ def build(raw: Mapping[str, Any], fake: bool = False) -> Robot:
     client = HuRIClient.from_config(config)
     client.on(ANGLES_TOPIC, ServoAngles, player.enqueue)
     audio = settings.get("audio", {})
-    if AUDIO_OUT_TOPIC in config.subscribe and audio.get("speaker", True):
-        from huri_inmoov_robot.audio import Speaker
+    speaker = AUDIO_OUT_TOPIC in config.subscribe and audio.get("speaker", True)
+    if speaker:
+        from huri_inmoov_robot.audio import Speaker, sounddevice_available
 
-        client.on(AUDIO_OUT_TOPIC, Audio, Speaker().play)
-    elif AUDIO_OUT_TOPIC in config.subscribe:
+        if not sounddevice_available():
+            logger.warning("no sounddevice: speaker off ([audio] extra)")
+            speaker = False
+        else:
+            client.on(AUDIO_OUT_TOPIC, Audio, Speaker().play)
+    if AUDIO_OUT_TOPIC in config.subscribe and not speaker:
 
         async def _mute(_: Audio) -> None:
             return None
@@ -106,20 +113,28 @@ def build(raw: Mapping[str, Any], fake: bool = False) -> Robot:
 
 async def run(robot: Robot, stop: Optional[asyncio.Event] = None) -> None:
     """Connect, play until the server closes the session or `stop` is set,
-    then park the robot at rest."""
+    then park the robot at rest.
+
+    The motion tasks (player, watchdog) dying ends the session too: a robot
+    without its watchdog must not keep talking and listening. Their error is
+    logged and the e-stop latched."""
 
     stop = stop or asyncio.Event()
     audio = robot.settings.get("audio", {})
     try:
         async with robot.client:
-            robot.tasks = [
+            motion = {
                 asyncio.create_task(robot.player.run()),
                 asyncio.create_task(watchdog_loop(robot.controller)),
-            ]
+            }
+            robot.tasks = list(motion)
             if AUDIO_IN_TOPIC in robot.config.send and audio.get("mic", True):
-                from huri_inmoov_robot.audio import mic_available, send_microphone
+                from huri_inmoov_robot.audio import (
+                    send_microphone,
+                    sounddevice_available,
+                )
 
-                if not mic_available():
+                if not sounddevice_available():
                     logger.warning("no sounddevice: microphone off ([audio] extra)")
                 else:
                     robot.tasks.append(
@@ -135,14 +150,34 @@ async def run(robot: Robot, stop: Optional[asyncio.Event] = None) -> None:
             closed = asyncio.create_task(robot.client.wait_closed())
             stopped = asyncio.create_task(stop.wait())
             robot.tasks += [closed, stopped]
-            await asyncio.wait({closed, stopped}, return_when=asyncio.FIRST_COMPLETED)
+            done, _ = await asyncio.wait(
+                {closed, stopped, *motion}, return_when=asyncio.FIRST_COMPLETED
+            )
+            for task in done & motion:
+                error = None if task.cancelled() else task.exception()
+                logger.critical(
+                    "motion task ended: %r; leaving the session",
+                    error,
+                    exc_info=error,
+                )
+                try:
+                    robot.controller.estop("motion task died")
+                except Exception:
+                    logger.exception("e-stop failed")
     finally:
         for task in robot.tasks:
             task.cancel()
         await asyncio.gather(*robot.tasks, return_exceptions=True)
         robot.player.clear()
-        await park(robot.controller)
-        robot.driver.close()
+        try:
+            await park(robot.controller)
+        except Exception:
+            logger.exception("parking failed")
+        finally:
+            try:
+                robot.driver.close()
+            except Exception:
+                logger.exception("closing the driver failed")
 
 
 async def _main(args: argparse.Namespace) -> None:

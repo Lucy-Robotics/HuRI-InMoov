@@ -1,10 +1,19 @@
-from typing import Optional
+import logging
+from typing import ClassVar, List, Optional
 
+import numpy as np
 from huri_core.core.module import Module
 from huri_events.motion import Motion
 
 from huri_events_inmoov import SERVO_LAYOUT_VERSION, SERVO_NAMES, ServoAngles
-from huri_inmoov.retarget import Retargeter, load_config
+from huri_inmoov.retarget import (
+    JOINTS_ENV,
+    Retargeter,
+    ServoMap,
+    load_operator_config,
+)
+
+logger = logging.getLogger("huri_inmoov")
 
 
 class InMoov(Module):
@@ -22,8 +31,11 @@ class InMoov(Module):
     HURI_ACTUATION_MODULES as well as HURI_MODULES. The robot enforces its own
     limits too (huri-inmoov-robot): never rely on this module alone.
 
-    :joints: path of a joints config (TOML, see huri_inmoov/joints.toml, the
-        default); a robot's calibration lives there.
+    The robot's calibration (a joints config, TOML: see
+    huri_inmoov/joints.toml, the default) is the server operator's choice,
+    never a client's: the path in $HURI_INMOOV_JOINTS, read once when the
+    server imports the module (it fails to start if that file is unreadable
+    or invalid). Takes no argument.
     """
 
     input_type = "huri.motion"
@@ -32,11 +44,19 @@ class InMoov(Module):
     output_event = ServoAngles
     actuation = True
 
+    # Resolved at import, on the server: shared by every session.
+    servos: ClassVar[List[ServoMap]] = load_operator_config(SERVO_NAMES)
+
     def __init__(self, joints: Optional[str] = None):
-        self.retarget = Retargeter(load_config(joints, SERVO_NAMES))
+        if joints is not None:
+            raise ValueError(f"joints is set by the server operator ({JOINTS_ENV})")
+        self.retarget = Retargeter(self.servos)
 
     async def process(self, data: Motion) -> Optional[ServoAngles]:
         if data.poses.shape[0] == 0:
+            return None
+        if not np.isfinite(data.poses).any():
+            logger.warning("dropped a Motion chunk with no finite pose value")
             return None
         angles = self.retarget(data.poses, data.fps)
         return ServoAngles(

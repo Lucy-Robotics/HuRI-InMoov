@@ -18,9 +18,13 @@ from huri_events.motion import Motion
 from huri_events_inmoov import SERVO_NAMES, ServoAngles
 from huri_inmoov.module import InMoov
 from huri_inmoov.retarget import (
+    JOINTS_ENV,
+    MAX_CONFIG_BYTES,
     SMPLX_JOINTS,
     JointsConfigError,
+    Retargeter,
     load_config,
+    load_operator_config,
     parse_config,
 )
 
@@ -127,7 +131,23 @@ def test_speed_limit_holds_across_chunks():
     assert abs(b - a) <= SERVOS[idx("head.rothead")].max_speed / 30 + 1e-4
 
 
-def test_custom_joints_config(tmp_path):
+def test_a_nan_holds_one_servo_for_one_frame_only():
+    module = ModuleHarness(InMoov)
+    poses = pose(3, neck=(10, 20, 0))
+    poses[1, SMPLX_JOINTS.index("neck") * 3] = np.nan  # neck x, frame 1
+    (first,) = module.run(motion(poses))
+    (second,) = module.run(motion(np.zeros((5, 165))))
+    assert np.all(np.isfinite(first.angles)) and np.all(np.isfinite(second.angles))
+    neck = first.angles[:, idx("head.neck")]
+    assert neck[1] == neck[0]  # held for the NaN frame
+    assert np.all(np.isfinite(module.module.retarget.last))
+
+
+def test_an_all_nan_chunk_emits_nothing():
+    assert run(motion(np.full((4, 165), np.nan))) == []
+
+
+def _fast_config(tmp_path):
     text = (
         (PACKAGE / "joints.toml")
         .read_text()
@@ -135,8 +155,38 @@ def test_custom_joints_config(tmp_path):
     )
     path = tmp_path / "joints.toml"
     path.write_text(text)
-    (out,) = run(motion(pose(1, neck=(0, 60, 0))), joints=str(path))
+    return path
+
+
+def test_the_operator_chooses_the_joints_config(tmp_path, monkeypatch):
+    path = _fast_config(tmp_path)
+    servos = load_operator_config(SERVO_NAMES, {JOINTS_ENV: str(path)})
+    retarget = Retargeter(servos)
+    out = retarget(pose(1, neck=(0, 60, 0)), 30)
+    assert out[0, idx("head.rothead")] == pytest.approx(150.0)
+    monkeypatch.setattr(InMoov, "servos", servos)
+    (out,) = run(motion(pose(1, neck=(0, 60, 0))))
     assert out.angles[0, idx("head.rothead")] == pytest.approx(150.0)
+    assert load_operator_config(SERVO_NAMES, {}) == SERVOS  # unset: packaged
+
+
+@pytest.mark.parametrize("make", ["missing", "directory", "too_big", "not_toml"])
+def test_a_bad_operator_config_stops_the_server(tmp_path, make):
+    path = tmp_path / "joints.toml"
+    if make == "directory":
+        path.mkdir()
+    elif make == "too_big":
+        path.write_text("#" * (MAX_CONFIG_BYTES + 1))
+    elif make == "not_toml":
+        path.write_text("servos = [")
+    with pytest.raises(JointsConfigError, match=JOINTS_ENV):
+        load_operator_config(SERVO_NAMES, {JOINTS_ENV: str(path)})
+
+
+def test_a_client_cannot_choose_the_calibration(tmp_path):
+    with pytest.raises(ValueError, match=JOINTS_ENV) as raised:
+        InMoov(joints="/dev/zero")
+    assert "/dev/zero" not in str(raised.value)
 
 
 def _neck(**fields):

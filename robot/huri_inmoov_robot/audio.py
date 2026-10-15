@@ -12,7 +12,9 @@ from huri_events.audio import Audio
 logger = logging.getLogger("huri_inmoov_robot.audio")
 
 
-def mic_available() -> bool:
+def sounddevice_available() -> bool:
+    """sounddevice and its PortAudio library are there (the [audio] extra)."""
+
     try:
         import sounddevice  # noqa: F401
     except (ImportError, OSError):  # OSError: no PortAudio library

@@ -9,12 +9,20 @@ implemented by arduino/huri_inmoov_servos/huri_inmoov_servos.ino:
     A             attach every servo again (at its last commanded angle)
 
 The board answers nothing; it ignores a line it does not parse.
+
+A write that does not complete within `write_timeout` (the board stopped
+reading: hung sketch, full USB buffer) raises DriverFault instead of blocking
+the event loop, where the software e-stop runs.
 """
 
 import logging
 from typing import Any, Dict, List, Mapping, Optional, Protocol, Tuple
 
 logger = logging.getLogger("huri_inmoov_robot.drivers")
+
+
+class DriverFault(RuntimeError):
+    """The driver cannot command the servos any more (e.g. a stuck port)."""
 
 
 class ServoDriver(Protocol):
@@ -65,6 +73,7 @@ class SerialDriver:
     :port: serial port (/dev/ttyACM0) or any pyserial URL (loop:// in tests).
     :channels: servo name -> channel id on the board; servos not listed are
         not driven (logged once).
+    :write_timeout: seconds a write may block before DriverFault.
     """
 
     def __init__(
@@ -73,17 +82,25 @@ class SerialDriver:
         channels: Mapping[str, int],
         baudrate: int = 115200,
         serial: Optional[Any] = None,
+        write_timeout: float = 0.05,
     ):
         if serial is None:
             import serial as pyserial
 
-            serial = pyserial.serial_for_url(port, baudrate=baudrate, timeout=0)
+            serial = pyserial.serial_for_url(
+                port, baudrate=baudrate, timeout=0, write_timeout=write_timeout
+            )
         self.serial = serial
         self.channels = dict(channels)
         self._unmapped: set = set()
 
     def _send(self, line: str) -> None:
-        self.serial.write(line.encode("ascii"))
+        from serial import SerialTimeoutException
+
+        try:
+            self.serial.write(line.encode("ascii"))
+        except SerialTimeoutException as e:
+            raise DriverFault(f"serial write timed out: {e}") from e
 
     def write(self, angles: Mapping[str, float]) -> None:
         lines = []

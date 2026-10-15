@@ -19,7 +19,7 @@ safely, on the robot.
  │ mic ──────── huri.audio.in ────┼──────────────>│ vad > stt > tag/emo > qag > rag > tts    │
  │ speaker <─── huri.audio.out ───┼<──────────────│                     │ huri.audio.out     │
  │                                │               │                     v                    │
- │ Player (frames at fps)         │               │                    mov (EMAGE, GPU)      │
+ │ Player (frames on pts)         │               │                    mov (EMAGE, GPU)      │
  │   v                            │               │                     │ huri.motion (SMPL-X)│
  │ SafetyController               │               │                     v                    │
  │   limits, speed, watchdog,     │<──────────────┼─ inmoov.servo_angles ─ inmoov (this repo)│
@@ -68,8 +68,12 @@ HURI_MODULES=vad,stt,tag,emo,eag,qag,rag,tts,mov,inmoov
 HURI_ACTUATION_MODULES=inmoov
 ```
 
-Module argument: `joints` (path of a joints config on the server, default the
-packaged `joints.toml`), e.g. `inmoov: {name: inmoov, args: {joints: /etc/huri/inmoov_joints.toml}}`.
+The robot's calibration (a joints config) is the operator's choice, never a
+client's: `HURI_INMOOV_JOINTS=/etc/huri/inmoov_joints.toml` on the server
+(default: the packaged `joints.toml`). It is read once, at startup, and the
+server refuses to start if the file is missing, not a regular file, larger
+than 64 KiB or invalid. The module takes no argument; a client passing
+`joints` gets its session refused.
 
 ### On the robot
 
@@ -108,7 +112,9 @@ pytest && black --check . && isort --check-only . && flake8
 ```
 
 CI (`.github/workflows/ci.yml`) does the same from git refs
-(`HURI_CORE_REF`, `HURI_MODULES_REF`, `dev` by default) on Python 3.10-3.12.
+(`HURI_CORE_REF`, `HURI_MODULES_REF`, `dev` until the release tags exist) on
+Python 3.10-3.12. `robot/tests/test_end_to_end.py` runs the robot client
+against HuRI's real `/session` endpoint with the `inmoov` module loaded.
 
 ## Retargeting (server)
 
@@ -172,9 +178,15 @@ The robot never trusts the server. Every angle goes through
   them. The Arduino sketch clamps once more to its own table.
 - **Max speed**: each servo moves at most `max_speed` deg/s of real time
   between commands; a pause never allows a jump (dt is capped at 0.1 s).
-- **Watchdog**: no frame for `watchdog_ms` (500 ms by default) -> `rest` (walk
-  back to rest at the speed limit) or `hold`. The Arduino lights its LED after
+- **Watchdog**: no frame for `watchdog_ms` (1500 ms by default) -> `rest` (walk
+  back to rest at the speed limit) or `hold`. Gestures pause between
+  sentences: a shorter watchdog walks the arms to rest and back in every
+  pause, a longer one leaves them up longer after a fault. The Arduino lights its LED after
   1 s without a command, and never moves a servo on its own.
+- **Driver fault**: a serial write blocked longer than `write_timeout`
+  (50 ms; the board stopped reading) latches the e-stop and sends nothing
+  more. If the player or watchdog task dies (e.g. the USB cable comes out),
+  the client e-stops, leaves the session and closes the driver.
 - **E-stop** (latched until reset): `<Enter>` in the terminal or
   `kill -USR1 <pid>`; `r` + `<Enter>` resets. `estop_action: hold` keeps the
   torque (the robot freezes); `detach` removes it, and **an InMoov's arms then
@@ -191,14 +203,15 @@ connected, small ranges, low `max_speed`.
 ## Calibration TODOs
 
 - [ ] Measure each servo's safe range and rest angle; write them in the
-      server's `joints.toml` (a copy passed with `args.joints`), the robot's
+      server's `joints.toml` (a copy pointed to by `HURI_INMOOV_JOINTS`), the robot's
       `robot.limits` and the sketch's tables.
 - [ ] Check every `scale` sign with small single-joint motions.
 - [ ] Fit `scale`/`ref` of the arms against recorded EMAGE motions.
 - [ ] Finger retargeting from the SMPL-X hand joints (25-54).
 - [ ] Two boards (InMoov's left/right Arduinos): one SerialDriver per port.
-- [ ] Synchronize frames with the audio playback through `pts` (the player
-      plays them as they arrive).
+- [ ] Anchor the playback clock on the speaker's position (the player
+      schedules frames on `pts` from the wall-clock time of each utterance's
+      first frame, and drops only frames already late).
 
 ## Versions and compatibility
 
@@ -207,7 +220,7 @@ connected, small ranges, low `max_speed`.
 | 0.1.x | 0.4.x | 0.1.x |
 
 The three packages of this repository are released together, with the same
-version. Dependency ranges: `huri-core>=0.4.0.dev0,<0.5`, `huri-events>=0.1,<0.2`,
+version. Dependency ranges: `huri-core>=0.4.0.dev0,<0.5`, `huri-events>=0.1.0.dev0,<0.2`,
 `huri-events-inmoov>=0.1,<0.2`.
 
 ## License

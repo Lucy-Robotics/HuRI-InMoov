@@ -11,7 +11,7 @@ description = "InMoov robot client of HuRI: servo angles to the servos, safely"
 requires-python = ">=3.10"
 dependencies = [
   "huri-core[client]>=0.4.0.dev0,<0.5",
-  "huri-events>=0.1,<0.2",          # huri.audio.in / huri.audio.out
+  "huri-events>=0.1.0.dev0,<0.2",          # huri.audio.in / huri.audio.out
   "huri-events-inmoov>=0.1,<0.2",   # inmoov.servo_angles (../events)
   "numpy>=1.26,<2",
   "pyserial>=3.5,<4",

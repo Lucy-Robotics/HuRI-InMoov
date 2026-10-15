@@ -40,8 +40,8 @@ modules:
     name: mov
   inmoov:
     name: inmoov
-    # args:
-    #   joints: /etc/huri/inmoov_joints.toml   # this robot's calibration, on the server
+    # No args: the robot's calibration is the server operator's choice
+    # (HURI_INMOOV_JOINTS=/etc/huri/inmoov_joints.toml on the server).
 
 # Read by huri-inmoov-robot only; the server never sees it.
 robot:
@@ -55,7 +55,12 @@ robot:
     head.neck: 0
     head.rothead: 1
     head.jaw: 2
-  watchdog_ms: 500            # no frame for this long -> on_timeout
+    # write_timeout: 0.05     # a write blocking longer is a driver fault (e-stop)
+  # No frame for watchdog_ms -> on_timeout. Gestures pause between sentences
+  # (mov waits for 0.5 s of fresh audio, and resets at each utterance's end):
+  # too short a watchdog walks the arms to rest and back in every pause; too
+  # long leaves them up longer after a fault. 1500 ms rides out the pauses.
+  watchdog_ms: 1500
   on_timeout: rest            # rest (walk back to rest) or hold (stay)
   estop_action: hold          # hold (keep torque) or detach (arms fall!)
   # Per-servo overrides of the robot's own limits (degrees, deg/s): these win
