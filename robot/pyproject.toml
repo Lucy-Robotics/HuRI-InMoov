@@ -25,9 +25,9 @@ audio = ["sounddevice>=0.5,<0.6"]
 huri-inmoov-robot = "huri_inmoov_robot.app:main"
 
 [project.urls]
-Homepage = "https://github.com/Lucy-Robotics/huri-inmoov"
-Repository = "https://github.com/Lucy-Robotics/huri-inmoov"
-Issues = "https://github.com/Lucy-Robotics/huri-inmoov/issues"
+Homepage = "https://github.com/Lucy-Robotics/HuRI-inmoov"
+Repository = "https://github.com/Lucy-Robotics/HuRI-inmoov"
+Issues = "https://github.com/Lucy-Robotics/HuRI-inmoov/issues"
 
 [tool.setuptools.packages.find]
 include = ["huri_inmoov_robot*"]

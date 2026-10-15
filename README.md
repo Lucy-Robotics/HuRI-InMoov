@@ -1,4 +1,4 @@
-# huri-inmoov
+# HuRI-inmoov
 
 [InMoov](https://inmoov.fr) robot integration for
 [HuRI](https://github.com/Lucy-Robotics/HuRI-landing): the robot listens,
@@ -55,8 +55,8 @@ Next to huri-core and the curated modules the pipeline uses (`vad`, `stt`,
 python -m pip install \
   "huri-core[server] @ git+https://github.com/Lucy-Robotics/huri-core.git@<core-ref>" \
   "huri-events @ git+https://github.com/Lucy-Robotics/huri-modules.git@<modules-ref>#subdirectory=packages/huri-events" \
-  "huri-events-inmoov @ git+https://github.com/Lucy-Robotics/huri-inmoov.git@<ref>#subdirectory=events" \
-  "huri-module-inmoov @ git+https://github.com/Lucy-Robotics/huri-inmoov.git@<ref>#subdirectory=module"
+  "huri-events-inmoov @ git+https://github.com/Lucy-Robotics/HuRI-inmoov.git@<ref>#subdirectory=events" \
+  "huri-module-inmoov @ git+https://github.com/Lucy-Robotics/HuRI-inmoov.git@<ref>#subdirectory=module"
 ```
 
 Enable it, and opt in to it moving hardware: `inmoov` declares
@@ -83,8 +83,8 @@ A client: `huri-core[client]`, no Ray, no module, no GPU.
 python -m pip install \
   "huri-core[client] @ git+https://github.com/Lucy-Robotics/huri-core.git@<core-ref>" \
   "huri-events @ git+https://github.com/Lucy-Robotics/huri-modules.git@<modules-ref>#subdirectory=packages/huri-events" \
-  "huri-events-inmoov @ git+https://github.com/Lucy-Robotics/huri-inmoov.git@<ref>#subdirectory=events" \
-  "huri-inmoov-robot[audio] @ git+https://github.com/Lucy-Robotics/huri-inmoov.git@<ref>#subdirectory=robot"
+  "huri-events-inmoov @ git+https://github.com/Lucy-Robotics/HuRI-inmoov.git@<ref>#subdirectory=events" \
+  "huri-inmoov-robot[audio] @ git+https://github.com/Lucy-Robotics/HuRI-inmoov.git@<ref>#subdirectory=robot"
 
 huri-inmoov-robot --config robot/config/robot_example.yaml --fake   # dry run: no servo moves
 huri-inmoov-robot --config my_robot.yaml                             # the real thing
@@ -215,7 +215,7 @@ connected, small ranges, low `max_speed`.
 
 ## Versions and compatibility
 
-| huri-inmoov | huri-core | huri-modules (huri-events) |
+| HuRI-inmoov | huri-core | huri-modules (huri-events) |
 |---|---|---|
 | 0.1.x | 0.4.x | 0.1.x |
 
