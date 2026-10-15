@@ -3,7 +3,7 @@
 # (robot side). Not a package itself.
 
 [tool.pytest.ini_options]
-testpaths = ["events/tests", "module/tests", "robot/tests"]
+testpaths = ["events/tests", "module/tests", "robot/tests", "tests"]
 python_files = ["test_*.py"]
 addopts = "--import-mode=importlib"
 
