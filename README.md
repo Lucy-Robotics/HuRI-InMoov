@@ -1,7 +1,7 @@
 # HuRI-inmoov
 
 [InMoov](https://inmoov.fr) robot integration for
-[HuRI](https://github.com/Lucy-Robotics/HuRI-landing): the robot listens,
+[HuRI](https://github.com/Lucy-Robotics/huri-core#huri-ecosystem): the robot listens,
 answers with HuRI's voice pipeline, and gestures while it speaks. HuRI's `mov`
 module generates SMPL-X gestures from the synthesized speech; this repository
 turns them into InMoov servo angles on the server, and drives the servos,
