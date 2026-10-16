@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 # huri-core is the ecosystem front door; HuRI-landing is archived and
 # Lucy-Robotics/HuRI only redirects, so neither is ever linked.
-KNOWN = {"huri-core", "huri-modules", "HuRI-inmoov"}
+KNOWN = {"huri-core", "huri-modules", "HuRI-InMoov"}
 SKIP = {".git", ".venv", "venv", "node_modules", "build", "dist", "__pycache__"}
 SUFFIXES = {".md", ".toml", ".yml", ".yaml", ".py", ".sh"}
 
