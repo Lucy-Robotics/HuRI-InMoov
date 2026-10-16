@@ -9,8 +9,8 @@ version = "0.1.0"
 description = "HuRI module: SMPL-X gestures to InMoov servo angles"
 requires-python = ">=3.10"
 dependencies = [
-  "huri-core[server]>=0.4.0.dev0,<0.5",
-  "huri-events>=0.1.0.dev0,<0.2",          # huri.motion, the input
+  "huri-core[server]>=0.4,<0.5",
+  "huri-events>=0.1,<0.2",          # huri.motion, the input
   # The events it introduces (../events): on no package index, so installed
   # together with the module, from the same checkout or tag (see the README).
   "huri-events-inmoov>=0.1,<0.2",

@@ -5,12 +5,11 @@ on:
   pull_request:
 
 # The HuRI refs this repository is built and tested against: a git ref (branch
-# or tag) of each repository. "dev" follows their development branches; pin
-# release tags (huri-core "0.4.0", huri-modules "0.1.0") once they exist,
-# choosing a compatible pair from the table in the huri-modules README.
+# or tag) of each repository: a compatible pair of release tags from the table
+# in the huri-modules README. Move both with this repository's huri-core range.
 env:
-  HURI_CORE_REF: dev
-  HURI_MODULES_REF: dev
+  HURI_CORE_REF: "0.4.0"
+  HURI_MODULES_REF: "0.1.0"
 
 jobs:
   test:
