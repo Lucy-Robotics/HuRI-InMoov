@@ -40,7 +40,7 @@ Three distributions, one repository:
 ## Install
 
 `<core-ref>` and `<modules-ref>` are git refs of huri-core and huri-modules:
-`dev` for now, release tags (`0.4.0`, `0.1.0`) once they exist (see
+normally release tags (`0.4.0`, `0.1.0`, see
 [Versions](#versions-and-compatibility)). `<ref>` is a ref of this repository.
 The events package is on no package index: install it in the same pip call as
 the package that needs it.
@@ -112,7 +112,7 @@ pytest && black --check . && isort --check-only . && flake8
 ```
 
 CI (`.github/workflows/ci.yml`) does the same from git refs
-(`HURI_CORE_REF`, `HURI_MODULES_REF`, `dev` until the release tags exist) on
+(`HURI_CORE_REF`, `HURI_MODULES_REF`: the release tags `0.4.0` and `0.1.0`) on
 Python 3.10-3.12. `robot/tests/test_end_to_end.py` runs the robot client
 against HuRI's real `/session` endpoint with the `inmoov` module loaded.
 
@@ -220,7 +220,7 @@ connected, small ranges, low `max_speed`.
 | 0.1.x | 0.4.x | 0.1.x |
 
 The three packages of this repository are released together, with the same
-version. Dependency ranges: `huri-core>=0.4.0.dev0,<0.5`, `huri-events>=0.1.0.dev0,<0.2`,
+version. Dependency ranges: `huri-core>=0.4,<0.5`, `huri-events>=0.1,<0.2`,
 `huri-events-inmoov>=0.1,<0.2`.
 
 ## License
