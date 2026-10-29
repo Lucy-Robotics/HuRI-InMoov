@@ -1,7 +1,7 @@
-# HuRI-inmoov
+# HuRI-inmoov: HuRI on Lucy robots
 
 The bridge between [Lucy](https://github.com/Lucy-Robotics/lucy_ws) robots
-(the InMoov humanoid, the SO-ARM101... on ROS 2) and
+(InMoov, SO-ARM101/LeRobot, any robot package Lucy runs on ROS 2) and
 [HuRI](https://github.com/Lucy-Robotics/huri-core), the realtime
 conversational pipeline: the robot listens through Lucy's microphone topic,
 HuRI answers, and the answer plays on Lucy's speaker topic.
@@ -11,12 +11,13 @@ HuRI answers, and the answer plays on Lucy's speaker topic.
 talks to the robot through rosbridge (no ROS install), registers in Lucy's
 client registry by heartbeat, and opens one HuRI session. It subscribes to ROS
 topics and sends them to HuRI, and subscribes to HuRI topics and publishes them
-on ROS.
+on ROS. Nothing in it, or in its config, names a robot.
 
-> **Status: 0.1.0, audio only.** Microphone and speech are bridged; motion
-> (HuRI's gestures to Lucy's joint trajectories) is the next route. Not yet
-> run against a real Lucy rosbridge: the tests use a fake one speaking the same
-> protocol, and HuRI's real session endpoint.
+> **Status: 0.1.0.** Voice works on every Lucy robot. The bridge discovers the
+> robot and what it can do; the routes that move it (gestures, speech motion)
+> are next. Not yet run against a real Lucy rosbridge: the tests use a fake one
+> speaking the same protocol, Lucy's real hardware configs, and HuRI's real
+> session endpoint.
 
 ## Architecture
 
@@ -25,42 +26,113 @@ on ROS.
  ┌───────────────────────────────────────────────┐       ┌──────────────────────────────┐
  │ control panel mic ─┐                          │       │                              │
  │ audio_capturer ────┴─> /mic_audio ─┐          │       │ vad > stt > tag/emo > qag    │
- │                                    │          │       │     > rag > tts              │
- │                   rosbridge :9090  │          │       │                              │
- │                                    v          │  ws   │                              │
+ │                                    │          │       │     > rag > tts (> mov)      │
+ │ /config/get (the robot) ──────┐    │          │ GET   │                              │
+ │                   rosbridge   v    v          │/modules                              │
  │                         huri-lucy-bridge ─────┼──────>│ huri.audio.in  (int16 PCM)   │
- │                           │  heartbeat  <─────┼───────│ huri.audio.out (float32)     │
- │                           │  /lucy/client_heartbeat   └──────────────────────────────┘
+ │                           │  profile    <─────┼───────│ huri.audio.out (float32)     │
+ │                           │  heartbeat        │  ws   └──────────────────────────────┘
  │                           v                   │
  │ control panel speakers <─ /audio              │
  │ audio_player_node <───────┘                   │
  └───────────────────────────────────────────────┘
 ```
 
-| Path | Distribution (import) | Installed on | What it is |
-|---|---|---|---|
-| `bridge/` | `huri-lucy-bridge` (`huri_lucy_bridge`) | anywhere that reaches Lucy's rosbridge and the HuRI server | the bridge (console script `huri-lucy-bridge`) |
-| `module/` | `huri-module-inmoov` (`huri_inmoov`) | the HuRI server | the `inmoov` module: `huri.motion` (SMPL-X) -> `inmoov.servo_angles`. Not bridged yet: the motion route will need it, or a retargeting to Lucy's URDF joints |
-| `events/` | `huri-events-inmoov` (`huri_events_inmoov`) | the HuRI server (and the bridge, with the motion route) | the `ServoAngles` event, entry point `inmoov.servo_angles` |
+The bridge works with any robot by layering what it knows:
 
-The former robot-side client (`robot/`, `huri-inmoov-robot`: serial servo
-driver, Arduino sketch, its own safety layer) is gone: Lucy owns the hardware now (ros2_control, the
-MCU firmware, the joint limits of its hardware config), and nothing else may
-drive the servos.
+1. **What every Lucy robot shares**: audio (`/mic_audio`, `/audio`), presence
+   (`/lucy/client_heartbeat`), control (`/lucy/control`), cameras. Routes on
+   these know nothing of the robot: voice works everywhere.
+2. **What Lucy says about the robot**, read at every connection and never
+   configured: `/config/get` gives the robot package (`inmoov_urdf`,
+   `so_arm101_urdf`...), its JointTrajectory controllers and their joint order,
+   and each joint's limits and rest, which the bridge converts to URDF radians
+   (`huri_lucy_bridge/robot.py`, parsed as lucy_cli and the panel parse it).
+   Lucy starts its config services after rosbridge: the bridge waits for them
+   up to `lucy.discovery_timeout_s` (30 s), then bridges voice only.
+3. **What HuRI's output does on that robot**: its *embodiment profile*, the
+   only robot-specific part, and data (`huri_lucy_bridge/profiles/`). See
+   [Robots](#robots).
+
+The HuRI server stays robot-agnostic: it emits speech and SMPL-X human motion,
+and the bridge adapts them to the robot it finds. No module per robot on the
+server, no robot calibration there.
 
 ## Routes
 
 One route per HuRI topic; the YAML's `send` and `subscribe` choose which run.
 
-| ROS (Lucy) | | HuRI | Conversion |
-|---|---|---|---|
-| `/mic_audio` `audio_common_msgs/msg/AudioStamped` | -> | `huri.audio.in` (send) | any PortAudio format and channel count -> int16 mono at `sample_rate`, resampled (linear), in frames of exactly `frame_duration` (webrtcvad takes 10, 20 or 30 ms) |
-| `/audio` `audio_common_msgs/msg/AudioStamped` | <- | `huri.audio.out` (subscribe) | float32 mono at the TTS rate -> int16 mono at the same rate, `speaker_chunk` samples per message, stamped along the audio (the player and the panel resample to their device) |
+| ROS (Lucy) | | HuRI | Needs | Conversion |
+|---|---|---|---|---|
+| `/mic_audio` `audio_common_msgs/msg/AudioStamped` | -> | `huri.audio.in` (send) | - | any PortAudio format and channel count -> int16 mono at `sample_rate`, resampled (linear), in frames of exactly `frame_duration` (webrtcvad takes 10, 20 or 30 ms) |
+| `/audio` `audio_common_msgs/msg/AudioStamped` | <- | `huri.audio.out` (subscribe) | - | float32 mono at the TTS rate -> int16 mono at the same rate, `speaker_chunk` samples per message, stamped along the audio (the player and the panel resample to their device) |
 
 The topics and message type are the contract of the control panel's
 `AudioBridgeHandler` and of lucy_ros_api's `CONTROL_PANEL_AUDIO.md`: the panel
 publishes the browser mic on `/mic_audio` (16 kHz mono int16, 1024 samples per
 message, no resampling needed) and plays `/audio`.
+
+A route acting on the robot may need a capability of its profile (*Needs*).
+The YAML describes the richest session; for a robot without the capability,
+the bridge leaves the route's topic out of the session, and the modules that
+only fed it: a robot without arms never runs `mov` on the server's GPU. Which
+module feeds what comes from the server's `GET /modules`; a server that does
+not answer it only gets no pruning.
+
+## Robots
+
+| | InMoov (i1, i2) | SO-ARM101 (LeRobot) | Any other robot package |
+|---|---|---|---|
+| Voice | yes | yes | yes |
+| Profile | [`inmoov.yaml`](bridge/huri_lucy_bridge/profiles/inmoov.yaml) | [`so_arm101.yaml`](bridge/huri_lucy_bridge/profiles/so_arm101.yaml) (experimental) | none: voice only |
+| `gestures`: SMPL-X -> joints | head, torso, both arms | one arm, as the speaker's right arm | - |
+| `speech_motion`: a joint that moves while speaking | the jaw | the gripper | - |
+
+A profile, keyed by robot package, says how HuRI's output moves the robot's
+URDF joints, in radians:
+
+```yaml
+version: 1
+robot_packages: [inmoov_urdf, inmoov_i2_urdf]
+gestures:                         # capability `gestures`
+  max_speed: 1.57                 # rad/s, default of the joints below
+  joints:
+    i01.head.rothead_link_joint:
+      sources: [neck.y, head.y]   # SMPL-X joint.axis, summed
+      scale: 1.0                  # rad of joint per rad of sources
+      ref: 0.0                    # rad of sources mapping to the joint's rest
+speech:                           # capability `speech_motion`
+  joint: i01.head.jaw_link_joint
+  open: 0.26                      # rad from rest at full voice
+```
+
+```
+angle = rest + scale * (sum of the sources - ref)
+      -> clamped to the joint's limits
+      -> moved at most max_speed / fps from the previous frame
+```
+
+Rests and limits are not in the profile: they are the robot's, from Lucy, so a
+recalibration in the panel needs no profile change. The source is the
+component of a SMPL-X joint's axis-angle vector on one axis (SMPL-X zero is the
+T-pose: y up, x to the body's left, z forward): a first-order Euler angle,
+exact for single-axis rotations, wrong for large combined ones (a proper
+swing-twist decomposition is future work). At each connection a profile is
+checked against the robot Lucy describes: the joints the robot lacks are left
+out with a warning, so one profile serves the variants of a model.
+
+The bridge picks the packaged profile of the robot package; `lucy.profile` in
+its YAML names another file, or `none`. **To support a new robot**: write its
+profile in `huri_lucy_bridge/profiles/` (one file, its `robot_packages`), and
+check it against the robot's hardware config the way
+`bridge/tests/test_profiles.py` checks InMoov's and SO-ARM101's (copy its
+`active.yaml` to `bridge/tests/fixtures/`). In time profiles belong in the
+robot packages themselves, served by Lucy, so a robot's authors own its
+embodiment.
+
+The InMoov profile is the former server-side `inmoov` module's `joints.toml`
+(servo degrees), ported to Lucy's URDF joints. Like it, no sign has been
+checked on a robot.
 
 ## On the Lucy side
 
@@ -151,13 +223,17 @@ starts the bridge in its own tmux window:
 
 A route (`huri_lucy_bridge/routes.py`) names its ROS topic and type and its
 HuRI topic, and converts one message to zero or more messages of the other
-side; it may keep state (the audio routes regroup samples). Register its
-factory in `ROS_TO_HURI` or `HURI_TO_ROS` (`huri_lucy_bridge/app.py`), keyed
-by its HuRI topic, and list that topic in the YAML's `send` or `subscribe`.
-Motion is next: `huri.motion` or `inmoov.servo_angles` -> Lucy's
-`trajectory_msgs/msg/JointTrajectory` controllers, whose joint names and order
-come from Lucy's `/config/get`, never hardcoded, and which need control
-(`/lucy/control`) first.
+side; it may keep state (the audio routes regroup samples). Register it in
+`ROS_TO_HURI` or `HURI_TO_ROS` (`huri_lucy_bridge/app.py`), keyed by its HuRI
+topic, with the capability it needs (`Outbound(factory, requires=...)`), and
+list that topic in the YAML's `send` or `subscribe`. Its factory gets the
+robot's resolved capabilities (the joints, their rest and limits).
+
+Next: `gestures` (`huri.motion` -> `huri_lucy_bridge.gestures.Retargeter` ->
+each controller's `trajectory_msgs/msg/JointTrajectory`, joints in the
+controller's order) and `speech_motion` (`huri.audio.out`'s loudness -> the
+jaw or gripper). Both move hardware: they take `/lucy/control` first, and
+stop when another client (the panel's operator) takes it.
 
 ## Development
 
@@ -165,78 +241,28 @@ come from Lucy's `/config/get`, never hardcoded, and which need control
 uv venv && . .venv/bin/activate                 # or python -m venv .venv
 uv pip install "huri-core[server,client] @ git+https://github.com/Lucy-Robotics/huri-core.git@0.4.0" \
   "huri-events @ git+https://github.com/Lucy-Robotics/huri-modules.git@dev#subdirectory=packages/huri-events"
-uv pip install -e "./bridge[dev]" -e ./events -e ./module
-pytest && black --check . && isort --check-only . && flake8 \
-  && mypy bridge/huri_lucy_bridge module/huri_inmoov events/huri_events_inmoov
+uv pip install -e "./bridge[dev]"
+pytest && black --check . && isort --check-only . && flake8 && mypy bridge/huri_lucy_bridge
 ```
 
 CI (`.github/workflows/ci.yml`) does the same on Python 3.10-3.12.
 `bridge/tests/test_app.py` runs the bridge between a fake rosbridge
-(`bridge/tests/bridge_fakes.py`: the v2 ops, and rosbridge's error status for a
-message type it cannot import) and HuRI's real `/session` endpoint, in-process
-(`[server]` is for that, and for the module's tests).
+(`bridge/tests/bridge_fakes.py`: the v2 ops, service calls such as Lucy's
+`/config/get`, and rosbridge's error status for a message type it cannot
+import) and HuRI's real `/session` and `/modules` endpoints, in-process
+(`[server]` is for that). `bridge/tests/fixtures/` holds Lucy's real hardware
+configs.
 
-## Retargeting (server)
+## TODO
 
-For each servo of the layout, `joints.toml` lists SMPL-X joint components
-(joint name or index 0-54, axis x/y/z of its axis-angle vector), a `scale`, a
-`ref` (the SMPL-X angle mapping to rest; the "offset"), `rest`, `[min, max]`
-and an optional `max_speed`:
-
-```
-angle = rest + scale * (sum of source angles in degrees - ref)
-      -> clamped to [min, max]
-      -> moved at most max_speed / fps from the previous frame
-```
-
-The module keeps the last angles of the session, so the speed limit holds
-across Motion chunks; it starts at rest. `fps` and `pts` pass through: one
-ServoAngles per Motion, frame for frame.
-
-Joint set (layout 1): `head.neck` (pitch: neck + head x), `head.rothead`
-(yaw: neck + head y), `head.jaw` (optional, `scale = 0` keeps it at rest),
-`torso.midStom` (yaw: spine1-3 y), and per arm `omoplate` (abduction, shoulder
-z), `shoulder` (flexion, shoulder y), `rotate` (upper-arm roll, shoulder x),
-`bicep` (elbow flexion, elbow y). Hands (`thumb`, `index`, `majeure`,
-`ringFinger`, `pinky`, `wrist`): **TODO**, held at rest.
-
-Assumptions (all to verify on a robot):
-
-- SMPL-X zero is the T-pose: y up, x to the body's left, z forward; local
-  joint rotations. The component of the axis-angle vector approximates the
-  Euler angle about that axis: exact for single-axis rotations, wrong for
-  large combined ones (a proper swing-twist decomposition is future work).
-- The arms' `omoplate` uses `ref = ∓80°` so that an arm lowered along the body
-  (EMAGE's usual pose) is the robot's rest, not the T-pose.
-- Signs (`scale`) follow the directions written in `joints.toml`; a servo
-  mounted the other way needs its sign flipped.
-- Ranges and rest angles are the commonly shipped defaults of MyRobotLab's
-  InMoov2 services (head neck/rothead 20-160 rest 90, jaw 10-25, omoplate
-  10-80 rest 10, shoulder 0-180 rest 30, rotate 40-180 rest 90, bicep 5-90 rest
-  5, fingers ~2-170); midStom is narrowed to 60-120 on purpose. They are a
-  starting point, not your robot's calibration.
-
-## The `inmoov.servo_angles` event
-
-`huri_events_inmoov.ServoAngles`: `angles` (n_frames x n_servos, degrees),
-`fps`, `pts` (matches the Motion/Audio it comes from), `layout`. Wire
-(binary): a 24-byte big-endian header `>dIIII` (pts f64, fps u32, n_frames
-u32, n_servos u32, layout u32), then n_frames x n_servos little-endian float32
-angles, frame by frame. Servo names are not sent: they are fixed by the layout
-version (`SERVO_LAYOUTS[1]`, 24 servos, `SERVO_NAMES`). A released layout never
-changes; a new servo set is a new layout, and a decoder refuses a layout it
-does not know.
-
-
-## Calibration TODOs (the `inmoov` module)
-
-- [ ] Measure each servo's safe range and rest angle; write them in the
-      server's `joints.toml` (a copy pointed to by `HURI_INMOOV_JOINTS`).
-- [ ] Check every `scale` sign with small single-joint motions.
-- [ ] Fit `scale`/`ref` of the arms against recorded EMAGE motions.
+- [ ] The `gestures` and `speech_motion` routes, with `/lucy/control`.
+- [ ] Verify every sign of the InMoov and SO-ARM101 profiles with small
+      single-joint motions and a low `max_speed`.
 - [ ] Finger retargeting from the SMPL-X hand joints (25-54).
-- [ ] Map the servo layout to Lucy's InMoov URDF joints (radians), for the
-      motion route.
+- [ ] Fit `scale`/`ref` of the arms against recorded EMAGE motions.
+- [ ] Profiles in the robot packages, served by Lucy; the panel's poses and
+      animations (today in the browser's localStorage) there too, as a
+      vocabulary of named motions.
 
 ## Versions and compatibility
 
@@ -244,11 +270,9 @@ does not know.
 |---|---|---|
 | 0.1.x | 0.4.x | 0.1.x |
 
-The three packages of this repository are released together, with the same
-version. Dependency ranges: `huri-core>=0.4,<0.5` (`>=0.4.0.dev0` for the
-module and events), `huri-events>=0.1,<0.2`, `huri-events-inmoov>=0.1,<0.2`.
-The bridge speaks rosbridge's v2 protocol, as lucy_ws's `rosbridge_websocket`
-(ROS 2 Jazzy) serves it.
+Dependency ranges: `huri-core>=0.4,<0.5`, `huri-events>=0.1,<0.2`. The bridge
+speaks rosbridge's v2 protocol, as lucy_ws's `rosbridge_websocket` (ROS 2
+Jazzy) serves it, and reads Lucy's hardware config `version: 1`.
 
 ## License
 

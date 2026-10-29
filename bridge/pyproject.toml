@@ -14,6 +14,7 @@ dependencies = [
   "huri-core[client]>=0.4,<0.5",   # its websockets talks to rosbridge too
   "huri-events>=0.1,<0.2",          # huri.audio.in / huri.audio.out
   "numpy>=1.26,<2",
+  "pyyaml>=6,<7",                   # Lucy's hardware config, the profiles
 ]
 
 [project.optional-dependencies]
@@ -27,6 +28,7 @@ dev = [
   "flake8>=7",
   "flake8-pyproject>=1.2",
   "mypy>=1.10",
+  "types-PyYAML",
 ]
 
 [project.scripts]
@@ -39,3 +41,6 @@ Issues = "https://github.com/Lucy-Robotics/HuRI-inmoov/issues"
 
 [tool.setuptools.packages.find]
 include = ["huri_lucy_bridge*"]
+
+[tool.setuptools.package-data]
+huri_lucy_bridge = ["profiles/*.yaml"]

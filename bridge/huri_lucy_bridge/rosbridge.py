@@ -6,6 +6,7 @@ panel does with roslib, in Python and without a ROS install.
     ros.advertise("/audio", "audio_common_msgs/msg/AudioStamped")
     async with ros:
         await ros.publish("/audio", {...})
+        config = await ros.call_service("/config/get", "lucy_msgs/srv/GetConfig")
         await ros.wait_closed()
 
 Messages are plain dicts in rosbridge's JSON form (a ROS 2 stamp is
@@ -36,6 +37,11 @@ _STATUS_LEVELS = {
 }
 
 
+class ServiceError(RuntimeError):
+    """rosbridge could not call the service (it is not advertised, or its
+    callback failed)."""
+
+
 @dataclass
 class _Subscription:
     msg_type: str
@@ -61,6 +67,7 @@ class RosbridgeClient:
         self._ws: Optional[websockets.ClientConnection] = None
         self._tasks: List[asyncio.Task] = []
         self._ids = itertools.count(1)
+        self._calls: Dict[str, "asyncio.Future[Message]"] = {}
 
     # --- configuration ----------------------------------------------------
 
@@ -138,6 +145,43 @@ class RosbridgeClient:
             raise ValueError(f"{topic!r} is not advertised: advertise() it first")
         await self._ws.send(json.dumps({"op": "publish", "topic": topic, "msg": msg}))
 
+    async def call_service(
+        self,
+        service: str,
+        srv_type: str,
+        args: Optional[Mapping[str, Any]] = None,
+        timeout: float = 5.0,
+    ) -> Message:
+        """The response's values. Raises ServiceError when rosbridge reports a
+        failure, asyncio.TimeoutError after `timeout` s without a response
+        (roslib never times out: a missing node would hang it), and
+        ConnectionError when the connection closes first."""
+
+        if self._ws is None:
+            raise RuntimeError("not connected")
+        call_id = f"call_service:{next(self._ids)}"
+        future: "asyncio.Future[Message]" = asyncio.get_running_loop().create_future()
+        self._calls[call_id] = future
+        try:
+            await self._ws.send(
+                json.dumps(
+                    {
+                        "op": "call_service",
+                        "id": call_id,
+                        "service": service,
+                        "type": srv_type,
+                        "args": dict(args or {}),
+                    }
+                )
+            )
+            response = await asyncio.wait_for(future, timeout)
+        finally:
+            self._calls.pop(call_id, None)
+        if not response.get("result", False):
+            raise ServiceError(f"{service}: {response.get('values')!r}")
+        values = response.get("values")
+        return values if isinstance(values, dict) else {}
+
     def _op(self, op: str, **fields: Any) -> str:
         return json.dumps({"op": op, "id": f"{op}:{next(self._ids)}", **fields})
 
@@ -154,11 +198,19 @@ class RosbridgeClient:
                     sub = self._subs.get(frame.get("topic", ""))
                     if sub is not None:
                         sub.queue.put_nowait(frame.get("msg") or {})
+                elif op == "service_response":
+                    future = self._calls.get(frame.get("id", ""))
+                    if future is not None and not future.done():
+                        future.set_result(frame)
                 elif op == "status":
                     level = _STATUS_LEVELS.get(frame.get("level"), logging.INFO)
                     logger.log(level, "rosbridge: %s", frame.get("msg"))
         except websockets.ConnectionClosed:
             pass
+        finally:
+            for future in self._calls.values():
+                if not future.done():
+                    future.set_exception(ConnectionError("rosbridge closed"))
 
     async def _dispatch_loop(self, topic: str, sub: _Subscription) -> None:
         while True:
