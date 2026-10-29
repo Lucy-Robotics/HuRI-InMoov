@@ -1,0 +1,64 @@
+# huri-lucy-bridge: HuRI's voice pipeline on a Lucy robot.
+#   huri-lucy-bridge --config bridge/config/bridge_example.yaml
+# The robot's microphone (/mic_audio) is HuRI's ears, /audio its voice; the
+# server must enable every module below in HURI_MODULES.
+
+huri_url: ws://localhost:8000/session
+
+send: [huri.audio.in]
+subscribe: [huri.audio.out]
+
+modules:
+  vad:
+    name: vad
+    args:
+      vad_agressiveness: 3
+      silence_duration: 1.5
+      sample_rate: ${lucy.audio.sample_rate}
+      block_duration: ${lucy.audio.frame_duration}
+  stt:
+    name: stt
+    args:
+      language: en
+      sample_rate: ${lucy.audio.sample_rate}
+      block_duration: ${lucy.audio.frame_duration}
+  tag:
+    name: tag
+  emo:
+    name: emo
+    args:
+      sample_rate: ${lucy.audio.sample_rate}
+      block_duration: ${lucy.audio.frame_duration}
+  eag:
+    name: eag
+  qag:
+    name: qag
+  rag:
+    name: rag
+    args:
+      language: en
+  tts:
+    name: tts
+
+# Read by huri-lucy-bridge only; the server never sees it.
+lucy:
+  # Lucy's rosbridge (lucy_bringup's web_ros_api, `pixi run core`).
+  rosbridge_url: ws://localhost:9090
+  # Prefix of the id the bridge heart-beats on /lucy/client_heartbeat.
+  client_id: huri_bridge
+  heartbeat_s: 1.0
+  # After HuRI or rosbridge goes away, try again every reconnect_s seconds
+  # (0: exit instead).
+  reconnect_s: 3.0
+  audio:
+    # Where the control panel (or audio_capturer_node) publishes the mic, and
+    # what audio_player_node and the panel's speakers play.
+    mic_topic: /mic_audio
+    speaker_topic: /audio
+    # The vad's input (and stt's, emo's): the bridge resamples and reframes
+    # the mic to it. Whisper hears 16 kHz; webrtcvad takes 0.010, 0.020 or
+    # 0.030 s frames.
+    sample_rate: 16000
+    frame_duration: 0.030
+    # Samples per /audio message.
+    speaker_chunk: 1024
