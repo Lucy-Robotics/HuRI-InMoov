@@ -1,4 +1,4 @@
-# HuRI-inmoov: HuRI on Lucy robots
+# HuRI-Lucy: HuRI on Lucy robots
 
 The bridge between [Lucy](https://github.com/Lucy-Robotics/lucy_ws) robots
 (InMoov, SO-ARM101/LeRobot, any robot package Lucy runs on ROS 2) and
@@ -173,7 +173,7 @@ python -m venv ~/huri-bridge && . ~/huri-bridge/bin/activate
 python -m pip install \
   "huri-core[client] @ git+https://github.com/Lucy-Robotics/huri-core.git@<core-ref>" \
   "huri-events @ git+https://github.com/Lucy-Robotics/huri-modules.git@<modules-ref>#subdirectory=packages/huri-events" \
-  "huri-lucy-bridge @ git+https://github.com/Lucy-Robotics/HuRI-inmoov.git@<ref>#subdirectory=bridge"
+  "huri-lucy-bridge @ git+https://github.com/Lucy-Robotics/HuRI-Lucy.git@<ref>#subdirectory=bridge"
 
 huri-lucy-bridge --config bridge/config/bridge_example.yaml
 ```
@@ -266,7 +266,7 @@ configs.
 
 ## Versions and compatibility
 
-| HuRI-inmoov | huri-core | huri-modules (huri-events) |
+| HuRI-Lucy | huri-core | huri-modules (huri-events) |
 |---|---|---|
 | 0.1.x | 0.4.x | 0.1.x |
 
