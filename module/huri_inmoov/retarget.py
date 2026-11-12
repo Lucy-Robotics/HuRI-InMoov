@@ -12,7 +12,11 @@ from pathlib import Path
 from typing import Any, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
-from huri_core.core.manifest import loads_toml
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10
+    import tomli as tomllib
 
 # SMPL-X joint order: 55 joints, 3 axis-angle values each in Motion.poses.
 SMPLX_JOINTS: Tuple[str, ...] = (
@@ -160,7 +164,7 @@ def load_config(
         if len(data) > MAX_CONFIG_BYTES:
             raise JointsConfigError(f"{path}: larger than {MAX_CONFIG_BYTES} bytes")
         text = data.decode("utf-8")
-    return parse_config(loads_toml(text), servo_names)
+    return parse_config(tomllib.loads(text), servo_names)
 
 
 def load_operator_config(
