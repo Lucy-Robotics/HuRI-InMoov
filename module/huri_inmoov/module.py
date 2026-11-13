@@ -28,8 +28,10 @@ class InMoov(Module):
     the session, starting at rest).
 
     Moves hardware: the server loads it only if its operator lists `inmoov` in
-    HURI_ACTUATION_MODULES as well as HURI_MODULES. The robot enforces its own
-    limits too (huri-inmoov-robot): never rely on this module alone.
+    HURI_ACTUATION_MODULES as well as HURI_MODULES. The robot must enforce its
+    own limits too (Lucy's ros2_control clamps to its hardware config): never
+    rely on this module alone. huri-lucy-bridge has no route for its output
+    yet.
 
     The robot's calibration (a joints config, TOML: see
     huri_inmoov/joints.toml, the default) is the server operator's choice,

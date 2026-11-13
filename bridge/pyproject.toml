@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=64,<82"]
+build-backend = "setuptools.build_meta"
+
+# The Lucy side: installed next to the robot's Lucy workspace (or anywhere
+# that reaches its rosbridge), never on the HuRI server. A client of HuRI
+# (huri-core[client], no Ray, no module) and of rosbridge (no ROS install).
+[project]
+name = "huri-lucy-bridge"
+version = "0.1.0"
+description = "Lucy robots as HuRI clients: ROS topics to HuRI and back, over rosbridge"
+requires-python = ">=3.10"
+dependencies = [
+  "huri-core[client]>=0.4,<0.5",   # its websockets talks to rosbridge too
+  "huri-events>=0.1,<0.2",          # huri.audio.in / huri.audio.out
+  "numpy>=1.26,<2",
+]
+
+[project.optional-dependencies]
+# The repository's lint and test tools (CI installs them through this extra).
+# flake8-pyproject: flake8 alone does not read [tool.flake8] of the root
+# pyproject.toml.
+dev = [
+  "pytest>=8",
+  "black>=24",
+  "isort>=5",
+  "flake8>=7",
+  "flake8-pyproject>=1.2",
+  "mypy>=1.10",
+]
+
+[project.scripts]
+huri-lucy-bridge = "huri_lucy_bridge.app:main"
+
+[project.urls]
+Homepage = "https://github.com/Lucy-Robotics/HuRI-InMoov"
+Repository = "https://github.com/Lucy-Robotics/HuRI-InMoov"
+Issues = "https://github.com/Lucy-Robotics/HuRI-InMoov/issues"
+
+[tool.setuptools.packages.find]
+include = ["huri_lucy_bridge*"]
