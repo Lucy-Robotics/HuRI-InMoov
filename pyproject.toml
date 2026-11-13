@@ -2,7 +2,7 @@
 # its own pyproject.toml. Not a package itself.
 
 [tool.pytest.ini_options]
-testpaths = ["bridge/tests"]
+testpaths = ["bridge/tests", "tests"]
 python_files = ["test_*.py"]
 addopts = "--import-mode=importlib"
 # The bridge tests' fakes (bridge_fakes.py).
