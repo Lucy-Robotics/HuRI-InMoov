@@ -1,6 +1,7 @@
-"""Shipped code uses huri-core only through its public surface (huri-core's
-docs/ARCHITECTURE.md): the robot through the client SDK, the module through
-the module base classes. Tests may load the module the way the server does."""
+"""Shipped code uses only the part of huri-core's public surface it needs: the
+robot the client SDK, the module the module base classes (huri-core records
+its public surface in tests/core/public_api.txt). Tests may load the module
+the way the server does."""
 
 import ast
 from pathlib import Path
