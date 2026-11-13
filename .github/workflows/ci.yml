@@ -5,13 +5,11 @@ on:
   pull_request:
 
 # The HuRI refs this repository is built and tested against: a git ref (branch
-# or tag) of each repository. huri-core: the release tag inside the
-# `huri-core>=0.4,<0.5` ranges of the packages (its `dev` carries 0.5.0.dev0,
-# which they exclude); it moves with the ranges. huri-modules: `dev`, so a
-# breaking change to huri-events shows up here.
+# or tag) of each repository: a compatible pair of release tags from the table
+# in the huri-modules README. Move both with this repository's huri-core range.
 env:
   HURI_CORE_REF: "0.4.0"
-  HURI_MODULES_REF: dev
+  HURI_MODULES_REF: "0.1.0"
   # Never wait for credentials: a wrong ref or a private repo fails at once.
   GIT_TERMINAL_PROMPT: "0"
 

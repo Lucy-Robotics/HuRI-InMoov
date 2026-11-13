@@ -9,8 +9,8 @@ version = "0.1.0"
 description = "HuRI module: SMPL-X gestures to InMoov servo angles"
 requires-python = ">=3.10"
 dependencies = [
-  "huri-core[server]>=0.4.0.dev0,<0.5",
-  "huri-events>=0.1.0.dev0,<0.2",          # huri.motion, the input
+  "huri-core[server]>=0.4,<0.5",
+  "huri-events>=0.1,<0.2",          # huri.motion, the input
   # The events it introduces (../events): on no package index, so installed
   # together with the module, from the same checkout or tag (see the README).
   "huri-events-inmoov>=0.1,<0.2",
@@ -19,9 +19,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Lucy-Robotics/HuRI-inmoov"
-Repository = "https://github.com/Lucy-Robotics/HuRI-inmoov"
-Issues = "https://github.com/Lucy-Robotics/HuRI-inmoov/issues"
+Homepage = "https://github.com/Lucy-Robotics/HuRI-InMoov"
+Repository = "https://github.com/Lucy-Robotics/HuRI-InMoov"
+Issues = "https://github.com/Lucy-Robotics/HuRI-InMoov/issues"
 
 [project.optional-dependencies]
 # The repository's lint and test tools (CI installs them through this extra).

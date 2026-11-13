@@ -1,4 +1,4 @@
-# HuRI-inmoov
+# HuRI-InMoov
 
 The bridge between [Lucy](https://github.com/Lucy-Robotics/lucy_ws) robots
 (the InMoov humanoid, the SO-ARM101... on ROS 2) and
@@ -101,7 +101,7 @@ python -m venv ~/huri-bridge && . ~/huri-bridge/bin/activate
 python -m pip install \
   "huri-core[client] @ git+https://github.com/Lucy-Robotics/huri-core.git@<core-ref>" \
   "huri-events @ git+https://github.com/Lucy-Robotics/huri-modules.git@<modules-ref>#subdirectory=packages/huri-events" \
-  "huri-lucy-bridge @ git+https://github.com/Lucy-Robotics/HuRI-inmoov.git@<ref>#subdirectory=bridge"
+  "huri-lucy-bridge @ git+https://github.com/Lucy-Robotics/HuRI-InMoov.git@<ref>#subdirectory=bridge"
 
 huri-lucy-bridge --config bridge/config/bridge_example.yaml
 ```
@@ -240,13 +240,13 @@ does not know.
 
 ## Versions and compatibility
 
-| HuRI-inmoov | huri-core | huri-modules (huri-events) |
+| HuRI-InMoov | huri-core | huri-modules (huri-events) |
 |---|---|---|
 | 0.1.x | 0.4.x | 0.1.x |
 
 The three packages of this repository are released together, with the same
-version. Dependency ranges: `huri-core>=0.4,<0.5` (`>=0.4.0.dev0` for the
-module and events), `huri-events>=0.1,<0.2`, `huri-events-inmoov>=0.1,<0.2`.
+version. Dependency ranges: `huri-core>=0.4,<0.5`,
+`huri-events>=0.1,<0.2`, `huri-events-inmoov>=0.1,<0.2`.
 The bridge speaks rosbridge's v2 protocol, as lucy_ws's `rosbridge_websocket`
 (ROS 2 Jazzy) serves it.
 

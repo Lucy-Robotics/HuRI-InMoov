@@ -3,7 +3,7 @@
 # events/ (server side). Not a package itself.
 
 [tool.pytest.ini_options]
-testpaths = ["bridge/tests", "events/tests", "module/tests"]
+testpaths = ["bridge/tests", "events/tests", "module/tests", "tests"]
 python_files = ["test_*.py"]
 addopts = "--import-mode=importlib"
 # The bridge tests' fakes (bridge_fakes.py).

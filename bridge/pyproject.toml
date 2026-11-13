@@ -33,9 +33,9 @@ dev = [
 huri-lucy-bridge = "huri_lucy_bridge.app:main"
 
 [project.urls]
-Homepage = "https://github.com/Lucy-Robotics/HuRI-inmoov"
-Repository = "https://github.com/Lucy-Robotics/HuRI-inmoov"
-Issues = "https://github.com/Lucy-Robotics/HuRI-inmoov/issues"
+Homepage = "https://github.com/Lucy-Robotics/HuRI-InMoov"
+Repository = "https://github.com/Lucy-Robotics/HuRI-InMoov"
+Issues = "https://github.com/Lucy-Robotics/HuRI-InMoov/issues"
 
 [tool.setuptools.packages.find]
 include = ["huri_lucy_bridge*"]
