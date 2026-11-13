@@ -10,6 +10,8 @@ on:
 env:
   HURI_CORE_REF: "0.4.0"
   HURI_MODULES_REF: "0.1.0"
+  # Never wait for credentials: a wrong ref or a private repo fails at once.
+  GIT_TERMINAL_PROMPT: "0"
 
 jobs:
   test:
@@ -23,17 +25,20 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      # [server]: the tests run HuRI's real /session endpoint in-process.
       - name: HuRI core and curated events, at HURI_CORE_REF / HURI_MODULES_REF
         run: |
           python -m pip install --upgrade pip
           pip install \
             "huri-core[server,client] @ git+https://github.com/Lucy-Robotics/huri-core.git@${HURI_CORE_REF}" \
             "huri-events @ git+https://github.com/Lucy-Robotics/huri-modules.git@${HURI_MODULES_REF}#subdirectory=packages/huri-events"
-      - name: The three packages, in one pip call (events are on no index)
-        run: pip install -e ./events -e "./module[dev]" -e ./robot
+      - run: pip install -e "./bridge[dev]"
       - name: style
         run: |
           black --check .
           isort --check-only .
           flake8
+      - name: types
+        run: mypy bridge/huri_lucy_bridge
       - run: pytest -q
+      - run: huri-lucy-bridge --help

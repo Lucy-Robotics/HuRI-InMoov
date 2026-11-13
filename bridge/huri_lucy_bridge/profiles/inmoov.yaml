@@ -1,0 +1,71 @@
+# InMoov (i1 and i2: the same URDF joint names) - embodiment profile.
+# See huri_lucy_bridge/profiles.py for the format. Rests and limits are the
+# robot's own (Lucy's hardware config); this file only says how HuRI's output
+# moves each joint, in URDF radians.
+#
+# Ported from the former `inmoov` HuRI module's joints.toml (servo degrees):
+# scale here = scale there * the actuator's `direction` in inmoov_urdf's
+# shipped hardware config (right_shoulder_z: -1), degrees -> radians. Those
+# signs were assumptions, never verified on a robot: check every joint with
+# small single-joint motions, and low max_speed, before trusting them.
+#
+# SMPL-X axes (zero pose, the T-pose): y up, x towards the body's left, z
+# forward. About x is a pitch, about y a yaw, about z a roll (frontal plane).
+version: 1
+robot_packages: [inmoov_urdf, inmoov_i2_urdf]
+
+gestures:
+  max_speed: 1.57  # rad/s (90 deg/s), conservative for HS-805BB/MG996R servos
+  joints:
+    # --- Head ---------------------------------------------------------------
+    i01.head.neck.001_link_joint:  # pitch, nodding
+      sources: [neck.x, head.x]
+      scale: -1.0
+    i01.head.rothead_link_joint:  # yaw, turning the head
+      sources: [neck.y, head.y]
+      scale: 1.0
+    # --- Torso --------------------------------------------------------------
+    i01.torso.midStom_link_joint:  # yaw of the upper body
+      sources: [spine1.y, spine2.y, spine3.y]
+      scale: 1.0
+    # --- Arms ---------------------------------------------------------------
+    # shoulder_z: abduction (the omoplate). SMPL-X zero is the T-pose (arm
+    #   abducted 90 deg); InMoov's rest is the arm down, so `ref` maps an arm
+    #   lowered by ~80 deg (EMAGE's usual pose) to the rest.
+    # shoulder_y: flexion (arm forward; a torso-board servo in Lucy's wiring).
+    # shoulder_x: rotation about the upper arm. elbow_x: the bicep.
+    # The right side mirrors the left.
+    left_shoulder_z_link_joint:
+      sources: [left_shoulder.z]
+      scale: 1.0
+      ref: -1.396
+    left_shoulder_y_link_joint:
+      sources: [left_shoulder.y]
+      scale: -1.0
+    left_shoulder_x_link_joint:
+      sources: [left_shoulder.x]
+      scale: 1.0
+    left_elbow_x_link_joint:
+      sources: [left_elbow.y]
+      scale: -1.0
+    right_shoulder_z_link_joint:
+      sources: [right_shoulder.z]
+      scale: 1.0
+      ref: 1.396
+    right_shoulder_y_link_joint:
+      sources: [right_shoulder.y]
+      scale: 1.0
+    right_shoulder_x_link_joint:
+      sources: [right_shoulder.x]
+      scale: 1.0
+    right_elbow_x_link_joint:
+      sources: [right_elbow.y]
+      scale: 1.0
+    # Hands: TODO. SMPL-X has 15 hand joints per hand (left_index1..
+    # right_thumb3); mapping their curl to InMoov's tendon servos is future
+    # work. Until then the fingers and wrists stay at rest.
+
+# The jaw opens with the voice (InMoov's jaw travels ~15 deg).
+speech:
+  joint: i01.head.jaw_link_joint
+  open: 0.26

@@ -1,7 +1,6 @@
 """Shipped code uses only the part of huri-core's public surface it needs: the
-robot the client SDK, the module the module base classes (huri-core records
-its public surface in tests/core/public_api.txt). Tests may load the module
-the way the server does."""
+bridge is a client, so the client SDK, the event base classes and the client
+config (huri-core records its public surface in tests/core/public_api.txt)."""
 
 import ast
 from pathlib import Path
@@ -10,12 +9,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED = {
-    "robot/huri_inmoov_robot": {
+    "bridge/huri_lucy_bridge": {
         "huri_core.core.client",
         "huri_core.core.events",
         "huri_core.core.dataclasses.config",
     },
-    "module/huri_inmoov": {"huri_core.core.module", "huri_core.core.events"},
 }
 
 
@@ -51,22 +49,23 @@ def package_violations(package: str) -> set:
     return found
 
 
-def test_the_robot_client_passes_the_public_surface_check():
-    found = package_violations("robot/huri_inmoov_robot")
-    assert not found, sorted(found)
+@pytest.mark.parametrize("package", sorted(ALLOWED))
+def test_every_checked_package_exists(package):
+    # A moved or renamed package would otherwise pass with nothing to check.
+    assert list((ROOT / package).rglob("*.py")), f"{package} has no Python file"
 
 
-def test_the_inmoov_module_reads_its_toml_without_a_huri_core_internal():
-    found = package_violations("module/huri_inmoov")
+def test_the_bridge_passes_the_public_surface_check():
+    found = package_violations("bridge/huri_lucy_bridge")
     assert not found, sorted(found)
 
 
 @pytest.mark.parametrize(
     "file,module",
     [
-        ("robot/huri_inmoov_robot/app.py", "huri_core.core.plugins"),
-        ("robot/huri_inmoov_robot/audio.py", "huri_core.core.huri"),
-        ("module/huri_inmoov/retarget.py", "huri_core.core.manifest"),
+        ("bridge/huri_lucy_bridge/app.py", "huri_core.core.plugins"),
+        ("bridge/huri_lucy_bridge/audio.py", "huri_core.core.huri"),
+        ("bridge/huri_lucy_bridge/session.py", "huri_core.core.manifest"),
     ],
 )
 def test_a_huri_core_internal_imported_by_shipped_code_fails_ci(file, module):

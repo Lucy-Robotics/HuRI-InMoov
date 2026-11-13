@@ -1,23 +1,31 @@
-# Tool configuration of the whole repository. The three distributions have
-# their own pyproject.toml: module/ (server side), events/ (shared), robot/
-# (robot side). Not a package itself.
+# Tool configuration of the whole repository. The distribution, bridge/, has
+# its own pyproject.toml. Not a package itself.
 
 [tool.pytest.ini_options]
-testpaths = ["events/tests", "module/tests", "robot/tests", "tests"]
+testpaths = ["bridge/tests", "tests"]
 python_files = ["test_*.py"]
 addopts = "--import-mode=importlib"
+# The bridge tests' fakes (bridge_fakes.py).
+pythonpath = ["bridge/tests"]
 
 [tool.isort]
 profile = "black"
 line_length = 88
-known_first_party = ["huri_inmoov", "huri_events_inmoov", "huri_inmoov_robot"]
+known_first_party = ["huri_lucy_bridge"]
+known_third_party = ["bridge_fakes"]
 
 [tool.black]
 line-length = 88
 target-version = ["py310"]
-extend-exclude = "arduino"
 
 [tool.flake8]
 max-line-length = 88
 extend-ignore = ["E203"]
 exclude = [".git", "__pycache__", ".venv", "venv", "build", "dist", "*.egg-info"]
+
+[tool.mypy]
+python_version = "3.10"
+# huri-events ships no py.typed marker.
+ignore_missing_imports = true
+strict_optional = true
+warn_unused_configs = true
