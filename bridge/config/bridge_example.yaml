@@ -50,6 +50,13 @@ lucy:
   # After HuRI or rosbridge goes away, try again every reconnect_s seconds
   # (0: exit instead).
   reconnect_s: 3.0
+  # Nothing here names the robot: the bridge asks Lucy (/config/get) and picks
+  # the packaged embodiment profile of its robot package. `profile` names
+  # another file, or `none` (voice only).
+  # profile: /etc/huri/my_robot_profile.yaml
+  # How long to wait for Lucy's config services (they start after rosbridge)
+  # before bridging voice only.
+  discovery_timeout_s: 30.0
   audio:
     # Where the control panel (or audio_capturer_node) publishes the mic, and
     # what audio_player_node and the panel's speakers play.

@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # huri-core is the ecosystem front door; HuRI-landing is archived and
 # Lucy-Robotics/HuRI only redirects, so neither is ever linked.
 # lucy_ws and lucy_control_panel: the Lucy robot stack the bridge talks to.
-KNOWN = {"huri-core", "huri-modules", "HuRI-InMoov", "lucy_ws", "lucy_control_panel"}
+KNOWN = {"huri-core", "huri-modules", "HuRI-Lucy", "lucy_ws", "lucy_control_panel"}
 SKIP = {".git", ".venv", "venv", "node_modules", "build", "dist", "__pycache__"}
 SUFFIXES = {".md", ".toml", ".yml", ".yaml", ".py", ".sh"}
 

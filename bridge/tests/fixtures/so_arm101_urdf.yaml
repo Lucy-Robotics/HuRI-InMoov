@@ -1,0 +1,168 @@
+version: 1
+robot_name: so_arm101
+generated_files:
+  ros2_control_xacro: so_arm101_ros2_control.xacro
+  controllers_yaml: controllers.yaml
+passive_urdf_joints: []
+ignore_urdf_joints: []
+
+cameras: []
+
+firmware:
+  source_dir: lucy_embedded_firmware
+  build_dir: build/firmware
+
+controller_manager:
+  update_rate: 100
+
+boards:
+  rp2040_so_arm:
+    serial_id: ''
+    board_class: bus_servo_only
+    slave_address: 1
+    internal_servo_slots: 6
+    firmware_target: lucy_so_arm
+    compile_definition: USE_SO_ARM
+    topic_actuators: actuators/so_arm
+    topic_sensors: sensors/so_arm
+    controller:
+      name: so_arm_controller
+      type: joint_trajectory_controller/JointTrajectoryController
+
+actuators:
+  - id: rotation
+    urdf_joint: Rotation
+    board: rp2040_so_arm
+    virtual_pin: 0
+    physical_pin: 1
+    servo_type: '300'
+    offset: 3.14159
+    direction: 1
+    scale: 1
+    limit_min: 1.08759
+    limit_max: 4.95322
+    default: 3.14159
+    enabled: true
+  - id: pitch
+    urdf_joint: Pitch
+    board: rp2040_so_arm
+    virtual_pin: 1
+    physical_pin: 2
+    servo_type: '300'
+    offset: 3.14159
+    direction: 1
+    scale: 1
+    limit_min: 1.28548
+    limit_max: 4.92408
+    default: 3.14159
+    enabled: true
+
+  - id: elbow
+    urdf_joint: Elbow
+    board: rp2040_so_arm
+    virtual_pin: 2
+    physical_pin: 3
+    servo_type: '300'
+    offset: 3.14159
+    direction: 1
+    scale: 1
+    limit_min: 1.29621
+    limit_max: 4.73233
+    default: 3.14159
+    enabled: true
+  - id: wrist_pitch
+    urdf_joint: Wrist_Pitch
+    board: rp2040_so_arm
+    virtual_pin: 3
+    physical_pin: 4
+    servo_type: '300'
+    offset: 3.14159
+    direction: 1
+    scale: 1
+    limit_min: 1.22412
+    limit_max: 4.88266
+    default: 3.14159
+    enabled: true
+  - id: wrist_roll
+    urdf_joint: Wrist_Roll
+    board: rp2040_so_arm
+    virtual_pin: 4
+    physical_pin: 5
+    servo_type: '300'
+    offset: 3.14159
+    direction: 1
+    scale: 1
+    limit_min: 0
+    limit_max: 6.28165
+    default: 3.14159
+    enabled: true
+  - id: jaw
+    urdf_joint: Jaw
+    board: rp2040_so_arm
+    virtual_pin: 5
+    physical_pin: 6
+    servo_type: '300'
+    offset: 3.14159
+    direction: 1
+    scale: 1
+    limit_min: 3.11858
+    limit_max: 5.40728
+    default: 3.14159
+    enabled: true
+
+sensors:
+  - id: rotation_encoder
+    type: encoder
+    associated_actuator: rotation
+    board: rp2040_so_arm
+    virtual_pin: 0
+    physical_pin: 1
+    min_value: 1.08759
+    max_value: 4.95322
+    enabled: false
+  - id: pitch_encoder
+    type: encoder
+    associated_actuator: pitch
+    board: rp2040_so_arm
+    virtual_pin: 1
+    physical_pin: 2
+    min_value: 1.28548
+    max_value: 4.92408
+    enabled: false
+  - id: elbow_encoder
+    type: encoder
+    associated_actuator: elbow
+    board: rp2040_so_arm
+    virtual_pin: 2
+    physical_pin: 3
+    min_value: 1.29621
+    max_value: 4.73233
+    enabled: false
+
+  - id: wrist_pitch_encoder
+    type: encoder
+    associated_actuator: wrist_pitch
+    board: rp2040_so_arm
+    virtual_pin: 3
+    physical_pin: 4
+    min_value: 1.22412
+    max_value: 4.88266
+    enabled: false
+  - id: wrist_roll_encoder
+    type: encoder
+    associated_actuator: wrist_roll
+    board: rp2040_so_arm
+    virtual_pin: 4
+    physical_pin: 5
+    min_value: 0
+    max_value: 6.28165
+    enabled: false
+  - id: jaw_encoder
+    type: encoder
+    associated_actuator: jaw
+    board: rp2040_so_arm
+    virtual_pin: 5
+    physical_pin: 6
+    min_value: 3.11858
+    max_value: 5.40728
+    enabled: false

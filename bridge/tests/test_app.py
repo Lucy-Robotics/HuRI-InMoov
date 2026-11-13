@@ -7,16 +7,33 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from bridge_fakes import FakeRosbridge, huri_server, wait_until
+from bridge_fakes import (
+    HARDWARE_YAML,
+    FakeRosbridge,
+    huri_server,
+    lucy_config,
+    wait_until,
+)
 from huri_core.core.client import HuRISessionError
 from huri_core.core.events import BytesEvent
 from huri_core.core.module import Module
 from huri_events.audio import Audio
+from huri_events.motion import Motion
 from omegaconf import OmegaConf
 
-from huri_lucy_bridge.app import build, run, serve
+from huri_lucy_bridge.app import (
+    HURI_TO_ROS,
+    Outbound,
+    build,
+    connect,
+    discover_robot,
+    run,
+    serve,
+)
 from huri_lucy_bridge.audio import AUDIO_STAMPED
 from huri_lucy_bridge.presence import HEARTBEAT_TOPIC
+from huri_lucy_bridge.profiles import GESTURES
+from huri_lucy_bridge.robot import parse_hardware_config
 
 
 class Echo(Module):
@@ -39,7 +56,12 @@ def config(huri_url, rosbridge_url, **lucy):
         "send": ["huri.audio.in"],
         "subscribe": ["huri.audio.out"],
         "modules": {"echo": {"name": "echo"}},
-        "lucy": {"rosbridge_url": rosbridge_url, "heartbeat_s": 0.05, **lucy},
+        "lucy": {
+            "rosbridge_url": rosbridge_url,
+            "heartbeat_s": 0.05,
+            "discovery_timeout_s": 0,
+            **lucy,
+        },
     }
 
 
@@ -114,13 +136,14 @@ def test_serve_reconnects_under_the_same_client_id():
             serving = asyncio.create_task(
                 serve(config(url, ros.url, reconnect_s=0.05), stop)
             )
-            await wait_until(lambda: ros.published(HEARTBEAT_TOPIC, connection=0))
-            await ros.connections[0].close()
+            # Each attempt: a discovery connection, then the bridge's.
             await wait_until(lambda: ros.published(HEARTBEAT_TOPIC, connection=1))
+            await ros.connections[1].close()
+            await wait_until(lambda: ros.published(HEARTBEAT_TOPIC, connection=3))
             # The new connection subscribes again, and bridges again.
             await wait_until(lambda: len(ros.subscribed("/mic_audio")) == 2)
             await ros.publish("/mic_audio", panel_mic(100, samples=480))
-            await wait_until(lambda: ros.published("/audio", connection=1))
+            await wait_until(lambda: ros.published("/audio", connection=3))
             stop.set()
             await asyncio.wait_for(serving, timeout=5)
             return ros
@@ -128,6 +151,11 @@ def test_serve_reconnects_under_the_same_client_id():
     ros = asyncio.run(main())
     ids = {m["data"] for m in ros.published(HEARTBEAT_TOPIC)}
     assert len(ids) == 1
+    # Lucy described no robot (no config services): voice only, each time.
+    assert [op["op"] for op in ros.ops if op["connection"] in (0, 2)] == [
+        "call_service",
+        "call_service",
+    ]
 
 
 def test_a_refused_session_is_not_retried_and_never_reaches_the_robot():
@@ -136,7 +164,8 @@ def test_a_refused_session_is_not_retried_and_never_reaches_the_robot():
             try:
                 await serve(config(url, ros.url, reconnect_s=0.05), asyncio.Event())
             finally:
-                assert ros.connections == []
+                # Discovery asked Lucy, but the bridge never registered.
+                assert {op["op"] for op in ros.ops} == {"call_service"}
 
     with pytest.raises(HuRISessionError):
         asyncio.run(main())
@@ -187,3 +216,110 @@ def test_the_example_config_builds():
     assert bridge.config.modules["stt"].args["sample_rate"] == 16000
     assert [r.ros_topic for r in bridge.inbound] == ["/mic_audio"]
     assert [r.ros_topic for r in bridge.outbound] == ["/audio"]
+
+
+class Mover(Module):
+    """Stands in for mov: gestures for the speech it hears."""
+
+    input_type = "huri.audio.out"
+    output_type = "huri.motion"
+    input_event = Audio
+    output_event = Motion
+
+    async def process(self, data: Audio) -> Motion:
+        t = 3
+        z = np.zeros((t, 165), np.float32)
+        return Motion(z, np.zeros((t, 100), np.float32), np.zeros((t, 3)), 30, 0.0)
+
+
+class Gestures:
+    """A route needing the gestures capability (the motion route to come)."""
+
+    huri_topic = "huri.motion"
+    event_cls = Motion
+    ros_topic = "/gestures"
+    ros_type = "std_msgs/msg/String"
+
+    def __init__(self, capabilities):
+        self.joints = [joint.name for _, joint in capabilities.gestures]
+
+    def convert(self, event):
+        return [{"data": ",".join(self.joints)}]
+
+
+@pytest.fixture
+def gesture_route(monkeypatch):
+    monkeypatch.setitem(
+        HURI_TO_ROS,
+        "huri.motion",
+        Outbound(lambda settings, caps: Gestures(caps), requires=GESTURES),
+    )
+
+
+def gesture_config(url, ros_url):
+    raw = config(url, ros_url)
+    raw["subscribe"] = ["huri.audio.out", "huri.motion"]
+    raw["modules"] = {"echo": {"name": "echo"}, "mov": {"name": "mover"}}
+    return raw
+
+
+def test_the_session_follows_the_robot_lucy_runs(gesture_route):
+    """A robot without a profile (testbot) carries voice only: huri.motion
+    and the mover that fed it leave the session, checked by HuRI's real
+    session endpoint and GET /modules."""
+
+    async def main():
+        services = lucy_config(HARDWARE_YAML, "testbot_urdf")
+        async with (
+            FakeRosbridge(services=services) as ros,
+            huri_server({"echo": Echo, "mover": Mover}) as url,
+        ):
+            bridge = await connect(gesture_config(url, ros.url))
+            stop = asyncio.Event()
+            session = asyncio.create_task(run(bridge, stop))
+            await wait_until(lambda: ros.subscribed("/mic_audio"))
+            await ros.publish("/mic_audio", panel_mic(1, samples=480))
+            await wait_until(lambda: ros.published("/audio"))
+            stop.set()
+            await asyncio.wait_for(session, timeout=5)
+            return bridge, ros
+
+    bridge, ros = asyncio.run(main())
+    assert bridge.robot.package == "testbot_urdf"
+    assert bridge.capabilities.names == frozenset()
+    assert bridge.dropped == ["huri.motion"]
+    assert bridge.config.subscribe == ["huri.audio.out"]
+    assert set(bridge.config.modules) == {"echo"}
+    assert ros.published("/gestures") == []
+
+
+def test_a_capable_robot_keeps_its_route(gesture_route):
+    inmoov = parse_hardware_config(
+        (Path(__file__).parent / "fixtures" / "inmoov_urdf.yaml").read_text(),
+        "inmoov_urdf",
+    )
+    bridge = build(gesture_config("ws://h", "ws://r"), robot=inmoov)
+    assert GESTURES in bridge.capabilities.names
+    assert bridge.dropped == []
+    assert bridge.config.subscribe == ["huri.audio.out", "huri.motion"]
+    _, gestures = bridge.outbound
+    assert "i01.head.rothead_link_joint" in gestures.joints
+    # An undiscovered robot (no config services) does not get it.
+    assert build(gesture_config("ws://h", "ws://r")).dropped == ["huri.motion"]
+
+
+def test_discovery_waits_for_lucys_config_services():
+    """rosbridge is up before the config services in Lucy's bringup."""
+
+    async def main():
+        async with FakeRosbridge() as ros:
+            later = lucy_config(HARDWARE_YAML, "testbot_urdf")
+            asyncio.get_running_loop().call_later(
+                0.3, lambda: ros.services.update(later)
+            )
+            robot = await discover_robot(ros.url, patience=5)
+            return robot, ros
+
+    robot, ros = asyncio.run(main())
+    assert robot.package == "testbot_urdf"
+    assert len([op for op in ros.ops if op["op"] == "call_service"]) >= 2

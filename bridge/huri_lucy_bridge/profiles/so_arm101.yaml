@@ -1,0 +1,31 @@
+# SO-ARM101 (LeRobot) - embodiment profile. See huri_lucy_bridge/profiles.py
+# for the format; rests and limits are the robot's own (Lucy's hardware config,
+# after LeRobot calibration).
+#
+# One arm, no head: it gestures as the speaker's right arm, and its gripper
+# opens with the voice like a mouth. EXPERIMENTAL: no sign below has been
+# checked on a robot. Check each joint with small motions and a low max_speed
+# first.
+version: 1
+robot_packages: [so_arm101_urdf]
+
+gestures:
+  max_speed: 0.8  # rad/s: slow until the mapping is verified
+  joints:
+    Rotation:  # base yaw <- the arm swinging forward/back (shoulder flexion)
+      sources: [right_shoulder.y]
+      scale: 1.0
+    Pitch:  # shoulder lift <- abduction; ref: the arm down is the rest
+      sources: [right_shoulder.z]
+      scale: -1.0
+      ref: 1.396
+    Elbow:
+      sources: [right_elbow.y]
+      scale: 1.0
+    Wrist_Pitch:
+      sources: [right_wrist.z]
+      scale: 1.0
+
+speech:
+  joint: Jaw
+  open: 0.5

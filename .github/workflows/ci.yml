@@ -32,14 +32,13 @@ jobs:
           pip install \
             "huri-core[server,client] @ git+https://github.com/Lucy-Robotics/huri-core.git@${HURI_CORE_REF}" \
             "huri-events @ git+https://github.com/Lucy-Robotics/huri-modules.git@${HURI_MODULES_REF}#subdirectory=packages/huri-events"
-      - name: The three packages, in one pip call (events are on no index)
-        run: pip install -e "./bridge[dev]" -e ./events -e ./module
+      - run: pip install -e "./bridge[dev]"
       - name: style
         run: |
           black --check .
           isort --check-only .
           flake8
       - name: types
-        run: mypy bridge/huri_lucy_bridge module/huri_inmoov events/huri_events_inmoov
+        run: mypy bridge/huri_lucy_bridge
       - run: pytest -q
       - run: huri-lucy-bridge --help

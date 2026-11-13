@@ -1,9 +1,8 @@
-# Tool configuration of the whole repository. The three distributions have
-# their own pyproject.toml: bridge/ (the Lucy side), module/ (server side),
-# events/ (server side). Not a package itself.
+# Tool configuration of the whole repository. The distribution, bridge/, has
+# its own pyproject.toml. Not a package itself.
 
 [tool.pytest.ini_options]
-testpaths = ["bridge/tests", "events/tests", "module/tests", "tests"]
+testpaths = ["bridge/tests", "tests"]
 python_files = ["test_*.py"]
 addopts = "--import-mode=importlib"
 # The bridge tests' fakes (bridge_fakes.py).
@@ -12,7 +11,7 @@ pythonpath = ["bridge/tests"]
 [tool.isort]
 profile = "black"
 line_length = 88
-known_first_party = ["huri_inmoov", "huri_events_inmoov", "huri_lucy_bridge"]
+known_first_party = ["huri_lucy_bridge"]
 known_third_party = ["bridge_fakes"]
 
 [tool.black]

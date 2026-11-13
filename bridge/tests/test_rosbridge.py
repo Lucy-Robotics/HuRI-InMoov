@@ -4,7 +4,7 @@ import logging
 import pytest
 from bridge_fakes import FakeRosbridge, wait_until
 
-from huri_lucy_bridge.rosbridge import RosbridgeClient
+from huri_lucy_bridge.rosbridge import RosbridgeClient, ServiceError
 
 AUDIO = "audio_common_msgs/msg/AudioStamped"
 
@@ -91,3 +91,43 @@ def test_declarations_are_checked():
 
 async def _ignore(_):
     return None
+
+
+def test_services_answer_or_fail():
+    def get(args):
+        return {"echo": args}
+
+    def broken(args):
+        raise RuntimeError("callback failed")
+
+    async def main():
+        async with FakeRosbridge(services={"/get": get, "/broken": broken}) as server:
+            async with RosbridgeClient(server.url) as ros:
+                values = await ros.call_service("/get", "pkg/srv/Get", {"a": 1})
+                with pytest.raises(ServiceError, match="callback failed"):
+                    await ros.call_service("/broken", "pkg/srv/Get")
+                with pytest.raises(ServiceError, match="does not exist"):
+                    await ros.call_service("/nobody", "pkg/srv/Get")
+                return values, server.ops
+
+    values, ops = asyncio.run(main())
+    assert values == {"echo": {"a": 1}}
+    assert ops[0]["type"] == "pkg/srv/Get" and ops[0]["args"] == {"a": 1}
+
+
+def test_a_service_call_times_out_or_ends_with_the_connection():
+    async def main():
+        async with FakeRosbridge() as server:
+            server._call = lambda op: {"op": "ignored"}  # a silent rosbridge
+            async with RosbridgeClient(server.url) as ros:
+                with pytest.raises(asyncio.TimeoutError):
+                    await ros.call_service("/slow", "pkg/srv/Get", timeout=0.05)
+                pending = asyncio.create_task(
+                    ros.call_service("/slow", "pkg/srv/Get", timeout=5)
+                )
+                await wait_until(lambda: len(server.ops) == 2)
+                await server.connections[0].close()
+                with pytest.raises(ConnectionError):
+                    await pending
+
+    asyncio.run(main())
